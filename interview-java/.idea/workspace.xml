@@ -37,6 +37,26 @@
     <property name="project.structure.proportion" value="0.1875" />
     <property name="project.structure.side.proportion" value="0.36101082" />
   </component>
+  <component name="RunManager">
+    <configuration name="baseJava" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="jdk.baseJava" />
+      <module name="java-base-jdk" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="jdk.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Application.baseJava" />
+      </list>
+    </recent_temporary>
+  </component>
   <component name="SvnConfiguration">
     <configuration />
   </component>
@@ -47,7 +67,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1583659132933</updated>
-      <workItem from="1583659135130" duration="7359000" />
+      <workItem from="1583659135130" duration="11137000" />
     </task>
     <servers />
   </component>
@@ -59,6 +79,22 @@
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="552" y="178" key="#Project_Structure/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1583659261026" />
+    <state width="1877" height="282" key="GridCell.Tab.0.bottom" timestamp="1583763479451">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state width="1877" height="282" key="GridCell.Tab.0.bottom/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1583763479451" />
+    <state width="1877" height="282" key="GridCell.Tab.0.center" timestamp="1583763479451">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state width="1877" height="282" key="GridCell.Tab.0.center/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1583763479451" />
+    <state width="1877" height="282" key="GridCell.Tab.0.left" timestamp="1583763479451">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state width="1877" height="282" key="GridCell.Tab.0.left/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1583763479451" />
+    <state width="1877" height="282" key="GridCell.Tab.0.right" timestamp="1583763479451">
+      <screen x="0" y="0" width="1920" height="1040" />
+    </state>
+    <state width="1877" height="282" key="GridCell.Tab.0.right/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1583763479451" />
     <state x="440" y="94" key="SettingsEditor" timestamp="1583673878426">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
