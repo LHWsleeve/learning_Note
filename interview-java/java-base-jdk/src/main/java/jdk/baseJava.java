@@ -44,7 +44,6 @@ public class baseJava {
 //            System.out.println("第二次失败");
 //        }
 //        System.out.println(readLine);
-        
     }
     public static void staticA(){
 
@@ -63,6 +62,9 @@ public class baseJava {
             System.out.println("finally");
         }
     }
-
+static {
+        i=3;
+}
+private static int i;
 }
 
