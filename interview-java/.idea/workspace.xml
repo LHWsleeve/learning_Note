@@ -48,7 +48,7 @@
       <recent name="jdk" />
     </key>
   </component>
-  <component name="RunManager" selected="Application.Ant">
+  <component name="RunManager" selected="Application.DeadLockDemo">
     <configuration name="Ant" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
       <option name="MAIN_CLASS_NAME" value="Ant" />
       <module name="java-base-jdk" />
@@ -69,6 +69,19 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
+    <configuration name="DeadLockDemo" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="Thread.DeadLockDemo" />
+      <module name="java-base-jdk" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="Thread.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="Enum" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
       <option name="MAIN_CLASS_NAME" value="jdk.Enum" />
       <module name="java-base-jdk" />
@@ -82,25 +95,12 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
-    <configuration name="foreach_remove" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
-      <option name="MAIN_CLASS_NAME" value="jdk.foreach_remove" />
+    <configuration name="MultiThread" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="Thread.MultiThread" />
       <module name="java-base-jdk" />
       <extension name="coverage">
         <pattern>
-          <option name="PATTERN" value="jdk.*" />
-          <option name="ENABLED" value="true" />
-        </pattern>
-      </extension>
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="reverse" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
-      <option name="MAIN_CLASS_NAME" value="jdk.reverse" />
-      <module name="java-base-jdk" />
-      <extension name="coverage">
-        <pattern>
-          <option name="PATTERN" value="jdk.*" />
+          <option name="PATTERN" value="Thread.*" />
           <option name="ENABLED" value="true" />
         </pattern>
       </extension>
@@ -110,11 +110,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Application.DeadLockDemo" />
+        <item itemvalue="Application.MultiThread" />
         <item itemvalue="Application.Ant" />
         <item itemvalue="Application.Constructors" />
         <item itemvalue="Application.Enum" />
-        <item itemvalue="Application.foreach_remove" />
-        <item itemvalue="Application.reverse" />
       </list>
     </recent_temporary>
   </component>
@@ -129,7 +129,7 @@
       <option name="presentableId" value="Default" />
       <updated>1583659132933</updated>
       <workItem from="1583659135130" duration="37523000" />
-      <workItem from="1584768893271" duration="1943000" />
+      <workItem from="1584768893271" duration="3985000" />
     </task>
     <servers />
   </component>
@@ -154,50 +154,51 @@
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="690" y="266" key="#com.intellij.refactoring.typeMigration.ui.FailedConversionsDialog/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1583934379150" />
-    <state width="1550" height="242" key="GridCell.Tab.0.bottom" timestamp="1584026065103">
-      <screen x="0" y="0" width="1920" height="1040" />
+    <state width="1479" height="321" key="GridCell.Tab.0.bottom" timestamp="1584798344034">
+      <screen x="1920" y="-245" width="2048" height="1112" />
     </state>
     <state width="1550" height="242" key="GridCell.Tab.0.bottom/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1584026065103" />
-    <state width="1552" height="308" key="GridCell.Tab.0.bottom/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584008713230" />
-    <state width="1550" height="242" key="GridCell.Tab.0.center" timestamp="1584026065103">
-      <screen x="0" y="0" width="1920" height="1040" />
+    <state width="1479" height="321" key="GridCell.Tab.0.bottom/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584798344034" />
+    <state width="1479" height="321" key="GridCell.Tab.0.center" timestamp="1584798344034">
+      <screen x="1920" y="-245" width="2048" height="1112" />
     </state>
     <state width="1550" height="242" key="GridCell.Tab.0.center/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1584026065103" />
-    <state width="1552" height="308" key="GridCell.Tab.0.center/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584008713230" />
-    <state width="1550" height="242" key="GridCell.Tab.0.left" timestamp="1584026065103">
-      <screen x="0" y="0" width="1920" height="1040" />
+    <state width="1479" height="321" key="GridCell.Tab.0.center/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584798344034" />
+    <state width="1479" height="321" key="GridCell.Tab.0.left" timestamp="1584798344034">
+      <screen x="1920" y="-245" width="2048" height="1112" />
     </state>
     <state width="1550" height="242" key="GridCell.Tab.0.left/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1584026065103" />
-    <state width="1552" height="308" key="GridCell.Tab.0.left/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584008713229" />
-    <state width="1550" height="242" key="GridCell.Tab.0.right" timestamp="1584026065103">
-      <screen x="0" y="0" width="1920" height="1040" />
+    <state width="1479" height="321" key="GridCell.Tab.0.left/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584798344034" />
+    <state width="1479" height="321" key="GridCell.Tab.0.right" timestamp="1584798344034">
+      <screen x="1920" y="-245" width="2048" height="1112" />
     </state>
     <state width="1550" height="242" key="GridCell.Tab.0.right/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1584026065103" />
-    <state width="1552" height="308" key="GridCell.Tab.0.right/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584008713230" />
-    <state width="1550" height="308" key="GridCell.Tab.1.bottom" timestamp="1584026064533">
-      <screen x="0" y="0" width="1920" height="1040" />
+    <state width="1479" height="321" key="GridCell.Tab.0.right/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584798344034" />
+    <state width="1479" height="321" key="GridCell.Tab.1.bottom" timestamp="1584798342683">
+      <screen x="1920" y="-245" width="2048" height="1112" />
     </state>
     <state width="1550" height="308" key="GridCell.Tab.1.bottom/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1584026064533" />
-    <state width="1552" height="308" key="GridCell.Tab.1.bottom/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584008713475" />
-    <state width="1550" height="308" key="GridCell.Tab.1.center" timestamp="1584026064533">
-      <screen x="0" y="0" width="1920" height="1040" />
+    <state width="1479" height="321" key="GridCell.Tab.1.bottom/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584798342683" />
+    <state width="1479" height="321" key="GridCell.Tab.1.center" timestamp="1584798342683">
+      <screen x="1920" y="-245" width="2048" height="1112" />
     </state>
     <state width="1550" height="308" key="GridCell.Tab.1.center/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1584026064533" />
-    <state width="1552" height="308" key="GridCell.Tab.1.center/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584008713475" />
-    <state width="1550" height="308" key="GridCell.Tab.1.left" timestamp="1584026064533">
-      <screen x="0" y="0" width="1920" height="1040" />
+    <state width="1479" height="321" key="GridCell.Tab.1.center/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584798342683" />
+    <state width="1479" height="321" key="GridCell.Tab.1.left" timestamp="1584798342683">
+      <screen x="1920" y="-245" width="2048" height="1112" />
     </state>
     <state width="1550" height="308" key="GridCell.Tab.1.left/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1584026064533" />
-    <state width="1552" height="308" key="GridCell.Tab.1.left/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584008713475" />
-    <state width="1550" height="308" key="GridCell.Tab.1.right" timestamp="1584026064533">
-      <screen x="0" y="0" width="1920" height="1040" />
+    <state width="1479" height="321" key="GridCell.Tab.1.left/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584798342683" />
+    <state width="1479" height="321" key="GridCell.Tab.1.right" timestamp="1584798342683">
+      <screen x="1920" y="-245" width="2048" height="1112" />
     </state>
     <state width="1550" height="308" key="GridCell.Tab.1.right/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1584026064533" />
-    <state width="1552" height="308" key="GridCell.Tab.1.right/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584008713475" />
-    <state x="596" y="156" key="SettingsEditor" timestamp="1584768947910">
-      <screen x="0" y="0" width="1920" height="1040" />
+    <state width="1479" height="321" key="GridCell.Tab.1.right/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584798342683" />
+    <state x="2556" y="-78" key="SettingsEditor" timestamp="1584797764057">
+      <screen x="1920" y="-245" width="2048" height="1112" />
     </state>
     <state x="596" y="156" key="SettingsEditor/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1584768947910" />
+    <state x="2556" y="-78" key="SettingsEditor/0.0.1920.1040/1920.-245.2048.1112@1920.-245.2048.1112" timestamp="1584797764057" />
     <state x="593" y="214" key="new project wizard" timestamp="1583659245935">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
@@ -243,6 +244,16 @@
           <url>file://$PROJECT_DIR$/java-base-jdk/src/main/java/jdk/Enum.java</url>
           <line>36</line>
           <option name="timeStamp" value="28" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/java-base-jdk/src/main/java/Thread/DeadLockDemo.java</url>
+          <line>26</line>
+          <option name="timeStamp" value="32" />
+        </line-breakpoint>
+        <line-breakpoint enabled="true" type="java-line">
+          <url>file://$PROJECT_DIR$/java-base-jdk/src/main/java/Thread/DeadLockDemo.java</url>
+          <line>50</line>
+          <option name="timeStamp" value="34" />
         </line-breakpoint>
         <line-breakpoint enabled="true" type="java-field">
           <url>file://$PROJECT_DIR$/java-base-jdk/src/main/java/jdk/Super.java</url>

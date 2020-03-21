@@ -6,6 +6,10 @@
 Java 虚拟机执行 java 的过程中会把他所管理的内存划分为若干个不同的数据区域。
 这些区域有各自的用途，以及创建，销毁的时间。(随着虚拟机进程的启动而一直存在，有些区域依赖用户线程的启动和结束而建立和销毁)
 
+<div align="center">  
+<img src="https://my-blog-to-use.oss-cn-beijing.aliyuncs.com/2019-3/JVM运行时数据区域.png" width="600px"/>
+</div>
+
 ### 1.1 程序计数器(programing counter register)
 
 - 是一块较小的内存空间，可以当成**当前线程**所执行的==字节码的行号指示器==。
