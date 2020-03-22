@@ -1,4 +1,7 @@
 public class Ant extends insect implements IAttack {
+    private Ant ant;
+
+
     @Override
     public void move() {
 
