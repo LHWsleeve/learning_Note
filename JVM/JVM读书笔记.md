@@ -847,11 +847,9 @@ public class String {
 （1）java.sql.DriverManager：rt.jar 包中的类，通过 Bootstrap 加载器加载。
 （2）DriverTest：开发人员自定义的实现了 java.sql.Driver 接口的类型，通过 App 加载器加载。
 
-```
-开发人员通过DriverManager.registerDriver方法把自己实现的获取连接的Driver实现类加载并注册到DriverManager中。
-然后DriverManager.getConnection方法会遍历所有注册的Driver，并触发Driver的connect接口来获取连接。
-（即绕过在DriverManager所在的Bootstrap加载器，因为Bootstrap加载器不能加载开发人员实现的Driver类）
-```
+开发人员通过`DriverManager.registerDriver`方法把自己实现的获取连接的`Driver`实现类加载并注册到`DriverManager`中。
+然后`DriverManager.getConnection`方法会遍历所有注册的`Driver`，并触发`Driver`的`connect`接口来获取连接。
+**（即绕过在`DriverManager`所在的 Bootstrap 加载器，因为 Bootstrap 加载器不能加载开发人员实现的 Driver 类）**
 
 定义一个 DriverTest 类，实现 rt.jar 里面的 java.sql.Driver 接口
 
@@ -903,8 +901,7 @@ DriverManager是由Bootstrap加载器的，因而获取不了Bootstrap加载器�
 ```
 
 **那么 DriverManager.getConnection 是怎么调用 DriverTest（App 加载器）的 getConnection 方法呢？**
-因为父委派模型的限制，DriverManager 不可能自己去加载 DriverTest，DriverTest 的加载实际上是由 AppClassLoader 完成的，DriverTest 里面会往
-DriverManager 中注册一个驱动。
+==因为父委派模型的限制，DriverManager 不可能自己去加载 DriverTest，DriverTest 的加载实际上是由 AppClassLoader 完成的==，DriverTest 里面会往 DriverManager 中注册一个驱动。
 
 ```java
 public class DriverTest implements java.sql.Driver {
@@ -953,3 +950,17 @@ if(isDriverAllowed(aDriver.driver, callerCL)) {
 ![asserts/驱动类类加载流程.png](asserts/驱动类类加载流程.png)
 
 所以可以看到，在 DriverManager 中要调用 DriverTest 的方法，并没有通过“父委派模型”去加载 DriverTest，而是由下层的类加载器自行完成类的加载。这里实际上是绕过了“父委派模型”的机制。
+
+#### 7.3.2.4 关于 tomcat 的类加载机制
+
+![asserts/关于tomcat的类加载机制.png](asserts/关于tomcat的类加载机制.png)
+从图中的委派关系中可以看出：
+
+1. CommonClassLoader 能加载的类都可以被 Catalina ClassLoader 和 SharedClassLoader 使用，从而实现了公有类库的共用。
+2. CatalinaClassLoader 和 Shared ClassLoader 自己能加载的类则与对方相互隔离。
+3. WebAppClassLoader 可以使用 SharedClassLoader 加载到的类，但各 WebAppClassLoader 实例之间相互隔离。
+4. JasperLoader 的加载范围仅仅是这个 JSP 文件所编译出来的那一个.Class 文件，它出现的目的就是为了被丢弃：当 Web 容器检测到 JSP 文件被修改时，会替换掉目前的 JasperLoader 的实例，并通过再建立一个新的 Jsp 类加载器来实现 JSP 文件的 HotSwap 功能。
+
+**那么 tomcat 违背了父委派模型吗？**
+tomcat 违背了父委派模型。
+因为双亲委派模型要求除了顶层的启动类加载器之外，其余的类加载器都应当由自己的父类加载器加载。而 tomcat 不是这样实现，==tomcat 为了实现隔离性，没有遵守这个约定，每个 webappClassLoader 加载自己的目录下的 class 文件，不会传递给父类加载器。==
