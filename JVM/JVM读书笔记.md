@@ -457,3 +457,499 @@ G1 比 CMS 有更大的内存占用和执行时额外的负载。
 6-8GB。
 
 ### 3.6 低延迟垃圾收集器（最后在加上吧）
+
+# 第七章 虚拟机类加载机制
+
+Java 虚拟机把描述类的数据从 Class 文件加载到内存，并对数据进行，连接(校验，准备，解析)和初始化，最终形成可以被虚拟机直接使用的 Java 类型，这整个过程被称之为**类加载机制**。
+在 Java 语言里，类的加载，连接和初始化过程都是在**程序运行期间**完成的，这种策略为 Java 应用==提供了极高的扩展性和灵活性，Java 依赖运行期动态加载和动态链接这个特点，天生具备动态扩展的语言特性==。(多态)
+
+## 7.1 类加载时机
+
+![asserts/类的生命周期.png](asserts/类的生命周期.png)
+一个类型从被加载到虚拟机内存中开始，到卸载出内存为止，经历--加载--连接(验证，准备，解析)-初始化-使用-卸载七个阶段。
+加载--验证，准备-初始化--卸载,这五个顺序是固定的，类型的加载过程按照这种顺序按部就班的开始，而解析阶段不一定，某些情况在初始化之后在开始 ==支持 Java 语言的运行时绑定。==
+什么情况需要开始类加载过程的**加载**：
+
+1. 遇到 new ,getstatic,putstatic 或 invokestatic 这四条字节码指令时候，如果类型没有进行过初始化，则需要先出发其初始化阶段。
+   _这四条指令会被调用的场景_
+   1. 使用 new 关键字实例化对象
+   2. 读取或设置一个类型的静态字段(**final 修饰，或编译器已经放入常量池的静态字段除外**)
+   3. 调用一个类型的静态方法的时候
+2. 使用 java.lang.reflect 包的方法对类型进行反射调用的时候，如果类型没有进行初始化，则要先出发其初始化。
+3. 当初始化类的时候，发现其父类还未初始化，需要先进行父类的初始化
+4. 当虚拟机启动时，用户需要制定一个主类(main)，虚拟机会先初始化这个主类
+5. 当使用 JDK 1.7 的动态语言支持时，如果一个 java.lang.invoke.MethodHandle 实例最后的解析结果为 REF_getStatic、REF_putStatic、REF_invokeStatic 的方法句柄，并且这个方法句柄所对应的类还没初始化，则需要先触发初始化。
+6. 接口中定义了 JDK8 新加入的默认方法时，如果这个接口的实现类发生了初始化，那么该方法要在其之前就被初始化。
+   有且仅有这 6 种会触发类型进行初始化的场景，被称之为**主动引用**，除此之外所有的引用类型的方式都不出发初始化，被称之为**被动引用**。
+7. 通过子类引用父类的静态字段，不会导致子类初始化。==对于静态字段，只有直接定义这个字段的类才会被初始化。==
+
+```java
+class SuperClass {
+    static {
+        System.out.println("SuperClass init!");
+    }
+    public static int value = 123;
+}
+
+class SubClass extends SuperClass {
+    static {
+        System.out.println("SubClass init!");
+    }
+}
+
+public class NotInitialization {
+    public static void main(String[] args) {
+        System.out.println(SubClass.value);
+        // SuperClass init!
+    }
+}
+```
+
+2. 通过数组定义来引用类，不会触发此类的初始化。数组类比较特殊，并不会触发类型本身的初始化，而是触发了由虚拟机自动生成的，继承于 Object 的子类的名为'[LSuperClass'的类初始化阶段，创建动作由字节码 newarray 触发。
+   也由于这个原因，Java 种对数组的访问比较安全。
+
+```java
+class SuperClass2 {
+    static {
+        System.out.println("SuperClass init!");
+    }
+    public static int value = 123;
+}
+
+public class NotInitialization2 {
+    public static void main(String[] args) {
+        SuperClass2[] superClasses = new SuperClass2[10];
+    }
+}
+```
+
+3.==常量在编译阶段会存入调用类的常量池中，本质上并没有直接引用到定义常量的类==，因此不会触发定义常量的类的初始化。
+编译阶段通过传播优化，常量存储到 NotInitialization 类的常量池中，任何对该常量的引用，实际都被转化为自身常量池的引用。
+NotInitialization 的 Class 文件中并没有 ConstClass 类的符号引用入口，==实际上这两个类在编译成 Class 之后就没有任何联系了。==
+
+```java
+class ConstClass {
+    static {
+        System.out.println("ConstClass init!");
+    }
+
+    public static final String HELLO_BINGO = "Hello Bingo";
+}
+
+public class NotInitialization3 {
+    public static void main(String[] args) {
+        System.out.println(ConstClass.HELLO_BINGO);
+    }
+}
+```
+
+接口的加载：
+接口加载与类加载最大的区别在于，第三种触发方式：**当一个类在初始化时，要求其父类全部都已经初始化过了，但是一个接口在初始化时，并不要求其父接口全部都完成了初始化，当真正用到父接口的时候才会初始化。**
+
+## 7.2 类加载的过程
+
+### 7.2.1 加载
+
+JVM 需要完成 3 件事：
+
+1. 通过类的全限定名(各种意义上的绝对路径)获取该类的二进制字节流。
+2. 将二进制字节流所代表的静态结构转化为方法区的运行时数据结构。
+3. 在内存中创建一个代表该类的 java.lang.Class 对象，作为方法区这个类的各种数据的访问入口。
+
+==怎样获取类的二进制字节流，JVM 没有限制==。除了从编译好的 .class 文件中读取，还有以下几种方式：
+
+```
+从 zip 包中读取，如 jar、war 等
+从网络中获取
+通过动态代理生成代理类的二进制字节流
+从数据库中读取
+....
+```
+
+相对于类加载过程的其他阶段，非数组类型的加载(准确的说是获取二进制字节流的方式)接待是开发人员可控性最强的部分。
+加载阶段**既可以使用虚拟机里内置的引导类加载器来完成，也可以由用户自定义的类加载器去完成**，实现根据自己的想法赋予应用程序获取运行代码的动态性。(==现在我还无法理解这个的好处，需要查阅资料==)
+**对于数组而言**情况略有不同，数组类本身不通过类加载器创建，==它是由虚拟机直接在内从中动态构造出来的==，不过数组类与类加载器任然有密切关系，因为**数组类的元素类型(Element Type)本身还是需要类加载器来完成加载的**，数组类的创建过程如下：
+
+1. 如果数组的组件类型(Component Type，数组去掉维度的部分,`int[][]`中的 int 部分)是引用类型(即 `非基础类型[]`数组),采用前述方法加载这个组件类型，并且数组将被标识在加载该组件类型的类加载器的类名称空间上。
+   ==一个类型必须与类加载器一起确定唯一性==
+2. 如果数组组件类不是引用类型，虚拟机将会把数组标记为**引导类加载器关联**
+3. 数组类的可访问性与他的组件类的可访问性一致。
+
+类加载结束后：**Java 虚拟机外部的二进制字节流按照虚拟机所设定的格式存储在方法区之中**。此后操作都会在方法区内进行，并且方法区中的数据存储格式完全由虚拟机自行定义。
+
+**加载阶段与连接阶段的部分内容交叉进行，但这两个阶段的开始仍然保持先后顺序。**
+
+### 7.2.2 验证
+
+确保 Class 文件的字节流中包含的信息符合当前虚拟机的要求，并且不会危害虚拟机自身的安全。
+因为 Class 文件并不一定只能由 Java 源码编译而来，可以以由任何方式产生，在字节码层面造成破坏。
+验证阶段是否严谨，直接决定 Java 虚拟机是否能承受恶意代码的攻击，从代码量和消耗的执行性能上来看，验证阶段的工作量很达。
+验证阶段大致包括以下四个部分：
+
+1. 文件格式验证：==只有通过这个验证，这段字节流才被允许进入 Java 虚拟机内存的方法区中进行存储，所以后面三个验证阶段全部是基于方法区的存储结构上进行的，不会再读区操作字节流==
+2. 元数据验证
+3. 字节码验证 ：对方法体进行校验分析
+4. 符号引用验证：发生在虚拟机将符号引用转化为直接引用的时候，属於解析部分
+
+### 7.2.3 准备
+
+**准备阶段是为类中定义的变量(静态变量)分配内存并设置初始值的阶段。**，在虚拟机模型概念上这些类都应该在方法区中分配内存，JDK7 之前，HotSpot 使用永久代来实现方法区时，在逻辑上是符合的。JDK8 之后，==类变量会随着 Class 对象一起存放在 Java 堆中==，此时内存分配就只是一种概念了。
+**注意**：
+
+1. 在准备阶段，这里进行的内存分配仅仅是==类变量==，不包括实例变量，实例变量会在对象实例化随着对象一起分配到 Java 堆中。
+2. 这里所说的初始值，通常情况下是数据类型的默认值。只有在进行==初始化==阶段才会赋值。 3.当然还有"不通常"的情况，字段被修饰为 final 类型时候，会变成==常类变量==，在准备阶段虚拟就就会为其赋值。(在编译阶段其实就已经放入常量池)
+
+```java
+/**
+ * 准备阶段过后的初始值为 0 而不是 123，这时候尚未开始执行任何 Java 方法
+ */
+public static int value = 123;
+
+/**
+ * 同时使用 final 、static 来修饰的变量（常量），并且这个变量的数据类型是基本类型或者 String 类型，就生成 ConstantValue 属性来进行初始化。
+ * 没有 final 修饰或者并非基本类型及 String 类型，则选择在 <clinit> 方法中进行初始化。
+ * 准备阶段虚拟机会根据 ConstantValue 的设置将 value 赋值为 123
+ */
+public static final int value = 123;
+```
+
+### 7.2.4 解析
+
+**虚拟机将常量池内的符号引用替换为直接引用**。会把该类所引用的其他类全部加载进来（ 引用方式：继承、实现接口、域变量、方法定义、方法中定义的本地变量）
+
+**符号引用：** 一个 java 文件会编译成一个 class 文件。在编译时，java 类并不知道所引用的类的实际地址，因此只能使用符号引用来代替。引用目标不一定在虚拟机内存中。
+**直接引用：** 直接指向目标的指针（指向方法区，Class 对象）、指向相对偏移量（指向堆区，Class 实例对象）或指向能间接定位到目标的句柄。引用的目标必须在虚拟机内存中。
+
+对方法或字段的访问，会在解析阶段对他们的可访问性(public，protect，defult，private)进行检查。
+对同一个符号引用进行多次解析请求时很常见的，所以除了 `invokedynamic`指令之外，**虚拟机可以实现对第一次解析结果进行缓存。**
+对于`invokedynamic`它对应的引用称之为，动态调用点限定符，**必须等到程序实际运行到这条指令时，解析动作才能进行**。
+解析动作主要针对类或接口，字段，类方法，接口方法，方法类型，方法句柄和调用限定符这 7 类符号应用，分别对应常量池的 8 中常量类型。
+这里包含前四种 P274,后四种在第八章
+
+1. 类或接口的解析
+2. 字段解析
+3. 方法解析
+4. 接口方法解析
+
+### 7.2.5 初始化
+
+类加载过程的最后一步，是执行类构造器 `<clinit>()`方法的过程。
+除了类加载阶段，用户可以自定义类加载器的方式局部参与，其他部分都由虚拟机来主导控制。直到初始化阶段，Java 虚拟机才真正开始执行类中编写的 Java 程序代码，将主权移交给应用程序。
+在`准备阶段`变量已经赋了默认值，在初始化阶段会根据程序编码进行真正的初始化。初始化阶段就是执行`<clinit>()`的过程，
+`<init>()`与 `<clinit>()` 介绍：  
+https://docs.oracle.com/javase/specs/jvms/se8/html/jvms-2.html#jvms-2.9
+
+https://blog.csdn.net/u013309870/article/details/72975536
+
+`<init>()`：**为 Class 类实例构造器**，对非静态变量解析初始化，一个类构造器对应个。
+
+`<clinit>()`：**为 Class 类构造器对静态变量**，静态代码块进行初始化，该方法是由编译器自动收集类中所有的==类变量赋值语句和静态代码块==中的语句合并而成的，通常一个类对应一个，不带参数，且是 void 返回。
+
+**加载顺序**：
+<clinit>() 方法是由**编译器自动收集类中的所有类变量的赋值动作语句和静态块**（static {}）中的语句合并产生的，编译器收集的**顺序由语句在源文件中出现的顺序所决定**。
+
+静态语句块中==只能访问定义在静态语句块之前的变量==，定义在它之后的变量，在前面的静态语句块中可以赋值，但不能访问。
+
+```java
+static {
+    i = 0;  // 给后面的变量赋值，可以正常编译通过
+    System.out.println(i);  // 使用后面的变量，编译器会提示“非法向前引用”
+}
+static int i = 1;
+```
+
+虚拟机会==保证在子类的 <clinit>() 方法执行之前，父类的 <clinit>() 方法已经执行完毕==。
+由于父类的 <clinit>() 方法先执行，意味着父类中定义的静态语句块要优先于子类的变量赋值操作。
+
+```java
+static class Parent {
+    static {
+        A = 2;
+    }
+    public static int A = 1;
+}
+
+static class Sub extends Parent {
+    public static int B = A;
+}
+
+public static void main(String[] args) {
+    System.out.println(Sub.B);  // 输出 1
+}
+```
+
+1. ==`<clinit>()`方法对于类或接口来说不是必须==：当一个类没有静态语句块，也没有对类变量的赋值操作，那么编译器可以不为这个类生成 `<clinit>()` 方法
+2. 接口中不能使用静态语句，但仍然有变量初始化的赋值操作，所以也会生成`<clinit>()` 方法，**但接口执行`<clinit>()` 方法不需要执行父接口的`<clinit>()` 方法**，因为只有当父类接口中定义的变量被使用时，父类接口才会被初始化。
+3. 虚拟机会保证一个类的 <clinit>() 方法在多线程环境中被正确加锁、同步。如果多个线程同时去初始化一个类，那么只会有一个线程去执行这个类的 <clinit>() 方法。
+   另外，如果执行初始化的线程出错，其他线程被唤醒后不会重新进入原先的那个`<clinit>()` 方法。==同一个类加载器下一个类型只会被初始化一次。==
+
+### 7.2.6 测试类加载顺序的代码
+
+```java
+public class JvmTest {
+
+    public static JvmTest jt = new JvmTest();
+
+    public static int a;
+    public static int b = 0;
+
+    static {
+        a++;
+        b++;
+    }
+
+    public JvmTest() {
+        a++;
+        b++;
+    }
+
+    public static void main(String[] args) {
+        /**
+         * 准备阶段：为 jt、a、b 分配内存并赋初始值 jt=null、a=0、b=0
+         * 解析阶段：将 jt 指向内存中的地址
+         * 初始化：jt 代码位置在最前面，这时候 a=1、b=1
+         *          a 没有默认值，不执行，a还是1，b 有默认值，b赋值为0
+         *          静态块过后，a=2、b=1
+         */
+        System.out.println(a);  // 输出 2
+        System.out.println(b);  // 输出 1
+    }
+}
+```
+
+执行流程：
+
+1. 准备阶段，赋默认值
+   此时 jt=null,a=0,b=0
+2. 解析阶段，将 jt 指向内存中真实地址
+3. 初始化阶段：clinit()方法按照 static 顺序，收集静态变量，静态代码块，并初始化。
+
+   此时：jt 在第一个，指向的是 JvmTest()，所以先执行构造方法中的`a++,b++`，所以 a=1,b=1。
+
+   然后继续执行静态变量 a 没有默认值，不执行，
+   此时 a=1，b 有默认值，赋值为 0
+
+   继续执行静态代码块，`a++,b++`，
+   此时 a=2,b=1
+
+## 7.3 类加载器
+
+“通过一个类的全新啊定名来获取描述该类的二进制字节流“这个动作在 Java 虚拟机之外完成，以便让应用程序自己决定加载需的累，实现这个动作的代码被称为"类加载器"。
+
+### 7.3.1 类与类加载器
+
+**对于任意一个类，都必须油价在它的类加载器和这个类本身一起共同确立其在 Java 虚拟机中的唯一性**，每一个类加载器，都拥有一个独立的类名称空间。
+即：比较两个类是否相等，只有这两个类是由同一个类加载器加载的前提下才有意义，否则即便这两个类来源同一个 Class 文件，被同一个 Java 虚拟机加载，==只要类加载器不同，类一定不相等==，包括但不限于 equal()方法等。
+
+### 7.3.2 双亲委派模型
+
+从虚拟机的角度来说，只存在两种不同的类加载器：一种是**启动类加载器(Bootstrap ClassLoader)**，hotspot 中使用 C++实现，是虚拟机自身的一部分；另一种就是**其他所有类加载器**，这些类加载器由 Java 实现，独立存在于虚拟机之外，并且全部都继承于抽象类 java.lang.ClassLoader。
+
+从开发人员角度来看，自 JDK1.2 起，Java 一直保持着三层类加载器、双亲委派的类加载架构。
+
+#### 7.3.2.1 **JDK8 以及之前：**
+
+1. **Bootstrap Class Loader：** 根类（或叫启动、引导类加载器）加载器
+   JDK 自带的一款类加载器，用于加载 JDK 内部的类。Bootstrap 类加载器用于加载 JDK 中`$JAVA_HOME/jre/lib`下面的那些类。
+   它负责加载 Java 的核心类（如 `String、System` 等）。它比较特殊，因为它是由原生 C++代码实现的，并不是 `java.lang.ClassLoader`的子类，所以下面的运行结果为 `null：`
+
+   ```java
+   public class TestJdkCl {
+   public static void main(String[] args) {
+   System.out.println(String.class.getClassLoader());
+   }
+   }
+   ```
+
+2. **Extension Class Loader** 扩展类加载器
+   主要用于加载 JDK 扩展包里的类。一般`$JAVA_HOME/lib/ext`下面的包都是通过这个类加载器加载的，这个包下面的类基本上是以`javax`开头的。另外，我们可以通过把自己开发的类打包成 JAR 文件放入扩展目录来为 Java 扩展核心类以外的新功能。
+
+3. **System ClassLoader/Application Class Loader** ：系统类加载器
+   它负责在 JVM 启动时加载来自 Java 命令的-classpath 选项、java.class.path 系统属性，或 CLASSPATH 环境变量所指定的 JAR 包和类路径。
+   用来加载开发人员自己平时写的应用代码的类的，加载存放在 classpath 路径下的那些应用程序级别的类的。
+   程序可以通过 ClassLoader 的静态方法 getSystemClassLoader 来获取系统类加载器：
+
+   ```java
+   public class TestJdkCl {
+   //获取主类的类加载器
+   public static void main(String[] args) {
+   System.out.println(TestJdkCl.class.getClassLoader().getClass().getName());
+   System.out.println(ClassLoader.getSystemClassLoader().getClass().getName());
+   }
+   }
+
+   ```
+
+   类加载器之间的层次关系被称之为，双亲委派模型。
+   ![asserts/双亲委派.png](asserts/双亲委派.png)
+   **双亲委派模型除了顶层的启动类加载器外，其余的类加载器都应有自己的父类加载**，==这里的加载器之间的父子关系，不是以继承关系来实现的，而是组合来复用==
+   **双亲委派的工作过程：** 当一个类加载器收到了类加载请求，不会自己先加载，而是它会把这个请求委派给父（parent）类加载器去完成，依次递归，因此所有的加载请求最终都被传送到顶层的启动类加载器中。==只有在父类加载器无法加载该类时子类才尝试从自己类的路径中加载该类==。
+   （注意：类加载器中的父子关系并不是类继承上的父子关系，而是类加载器实例之间的关系。）
+
+**双亲委派优点**
+
+1. 安全，可避免用户自己编写的类动态替换 Java 的核心类，如 java.lang.String
+2. 避免全限定命名的类重复加载(使用了 findLoadClass()判断当前类是否已加载)
+
+问题：可不可以自己写个 String 类(也是自定义的 String 为何没加载到？
+
+```
+不可以。
+因为在类加载中，会根据双亲委派机制去寻找当前java.lang.String是否已被加载。
+由于启动类加载器已在启动时候加载了所以不会再次加载，因此使用的String是已在java核心类库加载过的String，而不是新定义的String。
+```
+
+```java
+//这里为了测试，将其的包名改成与jdk的rt.jar中的java.lang.String一致。
+package java.lang;   
+public class String {
+    static {
+        System.out.println(11);
+    }
+    private String(int i) {
+        System.out.println(i);
+    }
+    //注意：核心类库的String是没有main方法的，因为他找到的核心类库String, 所以报找不到main()方法错误.
+    public static void main(java.lang.String[] args) {
+        String s = new String(1);
+        System.out.println(s);
+    }
+}
+```
+
+#### 7.3.2.2 **Java9 的改变**
+
+1. 扩展类加载器被平台类加载器取代。既然整个 JDK 都基于模块化进行构建，其中的 Java 类库以天然的满足可扩展需求，无需再保留原目录。
+2. 平台类加载器和一弄程序类加载器都不在派生自`java.net.URLClassLoader`，如果有程序直接以来这种继承关系，代码可能会在高版本中崩溃。
+   现在启动类加载，平台类加载器，应用程序类加载器全部继承于`jdk.internal.loader.BuiltinClassLoader`。
+   并且此时，启动类加载器是 Java 虚拟机和 Java 类库共同协作实现的类加载器。
+3.
+
+![asserts/JDK9双亲委派.png](asserts/JDK9双亲委派.png)
+虽然 JDK9 种任然维持着三层类加载器和双亲委派架构，但类加载器的委派关系发生了变动。当 PlatFormCLassLoader 以及 ApplicationClassLoader 收到加载请求的时候，在委派给父加载器前，会先判断该类是否能够归属到某个系统模块中去，如果可以，就会优先委派给那个模块的加载器完成加载。
+
+**三个内置的类加载器一起协作来加载类:**
+
+- 当应用程序类加载器需要加载类时，它将搜索定义到所有类加载器的模块。 如果有合适的模块定义在这些类加载器中，则该类加载器将加载类，这意味着应用程序类加载器现在可以委托给引导类加载器和平台类加载器。  如果在为这些类加载器定义的命名模块中找不到类，则应用程序类加载器将委托给其父类，即平台类加载器。 如果类尚未加载，则应用程序类加载器将搜索类路径。 如果它在类路径中找到类，它将作为其未命名模块的成员加载该类。 如果在类路径中找不到类，则抛出 ClassNotFoundException 异常。
+- 当平台类加载器需要加载类时，它将搜索定义到所有类加载器的模块。 如果一个合适的模块被定义为这些类加载器中，则该类加载器加载该类。 这意味着平台类加载器可以委托给引导类加载器以及应用程序类加载器。 如果在为这些类加载器定义的命名模块中找不到一个类，那么平台类加载器将委托给它的父类，即引导类加载器。
+- 当引导类加载器需要加载一个类时，它会搜索自己的命名模块列表。 如果找不到类，它将通过命令行选项-Xbootclasspath/a 指定的文件和目录列表进行搜索。 如果它在引导类路径上找到一个类，它将作为其未命名模块的成员加载该类。
+
+#### 7.3.2.3 破坏双亲委派机制
+
+- 通过预加载的方式;
+- 通过 Thread.getContextClassLoader();
+
+1. **预加载方式**
+   在某些情况下父类加载器需要委托子类加载器去加载 class 文件，受到加载范围的限制，父类加载器无法加载到需要的文件。
+   以 Driver 接口为例，由于`Driver`接口定义在 jdk 当中的，而其实现由各个数据库的服务商来提供，比如 mysql 的就写了 MySQL Connector，那么问题就来了，`DriverManager`（也由 jdk 提供）要加载各个实现了`Driver`接口的实现类，然后进行管理，**但是`DriverManager`由启动类加载器加载，只能记载 JAVA_HOME 的 lib 下文件，而其实现是由服务商提供的，由系统类加载器加载，这个时候就需要启动类加载器来委托子类来加载 Driver 实现**，从而破坏了双亲委派，这里仅仅是举了破坏双亲委派的其中一个情况。
+
+**拿 sql 连接来说：**
+（1）java.sql.DriverManager：rt.jar 包中的类，通过 Bootstrap 加载器加载。
+（2）DriverTest：开发人员自定义的实现了 java.sql.Driver 接口的类型，通过 App 加载器加载。
+
+```
+开发人员通过DriverManager.registerDriver方法把自己实现的获取连接的Driver实现类加载并注册到DriverManager中。
+然后DriverManager.getConnection方法会遍历所有注册的Driver，并触发Driver的connect接口来获取连接。
+（即绕过在DriverManager所在的Bootstrap加载器，因为Bootstrap加载器不能加载开发人员实现的Driver类）
+```
+
+定义一个 DriverTest 类，实现 rt.jar 里面的 java.sql.Driver 接口
+
+```java
+public class DriverTest implements Driver {
+    static {
+        try {
+            java.sql.DriverManager.registerDriver(new DriverTest());
+            System.out.println("who load DriverTest: " + DriverTest.class.getClassLoader());
+        } catch (SQLException E) {
+            throw new RuntimeException("Can't register driver!");
+        }
+    }
+
+    @Override
+    public Connection connect(String url, Properties info) throws SQLException {
+        return new Connection() {
+        //此处省略一堆代码......
+        }
+    }
+
+	//启动代码
+    public static void main(String[] args) {
+        try {
+			//由AppClassLoader加载DriverTest类
+			Class.forName("com.jenson.pratice.classloader.DriverTest");
+            System.out.println("who load DriverManager: "+DriverManager.class.getClassLoader());
+            //通过rt.jar中的DriverManager去获取链接，DriverManager由BootstrapClassLoader加载
+            Connection connection = DriverManager.getConnection("jdbc://");
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+```
+
+此时运行 main 方法打印：
+
+```
+who load DriverTest: sun.misc.Launcher$AppClassLoader@18b4aac2
+who load DriverManager: null
+Process finished with exit code 0
+---------------------
+DriverManager是由Bootstrap加载器的，因而获取不了Bootstrap加载器，所以为null。
+从父委派模型的机制上看，因为rt.jar是由Bootstrap加载器加载的，所以里面的类，都不能用到rt.jar以外的类。
+
+```
+
+**那么 DriverManager.getConnection 是怎么调用 DriverTest（App 加载器）的 getConnection 方法呢？**
+因为父委派模型的限制，DriverManager 不可能自己去加载 DriverTest，DriverTest 的加载实际上是由 AppClassLoader 完成的，DriverTest 里面会往
+DriverManager 中注册一个驱动。
+
+```java
+public class DriverTest implements java.sql.Driver {
+    static {
+        try {
+        	//在这里注册
+            java.sql.DriverManager.registerDriver(new DriverTest());
+        } catch (SQLException E) {
+            throw new RuntimeException("Can't register driver!");
+        }
+    }
+
+```
+
+对于 DriverManager 而言，**他不关注 driver 的加载，他只需要遍历“registeredDrivers”，然后检查驱动类是否能被“调用类的类加载器”识别**，如果可以识别，则调用 driver.connect 方法（即 DriverTest 中的实现）
+
+```java
+ public class DriverManager{
+    private static Connection getConnection(
+        String url, java.util.Properties info, Class<?> caller) throws SQLException {
+        //省略一堆代码
+        for(DriverInfo aDriver : registeredDrivers) {
+        //在这里做安全校验
+if(isDriverAllowed(aDriver.driver, callerCL)) {
+                try {
+                    println("    trying " + aDriver.driver.getClass().getName());
+                    //在这里调用DriverTest的connect方法
+                    Connection con = aDriver.driver.connect(url, info);
+                    if (con != null) {
+                        // Success!
+                        println("getConnection returning " + aDriver.driver.getClass().getName());
+                        return (con);
+                    }
+                } catch (SQLException ex) {
+                    if (reason == null) {
+                        reason = ex;
+                    }
+                }
+                //省略一堆代码
+
+
+
+```
+
+**整体的流程是这样的**
+![asserts/驱动类类加载流程.png](asserts/驱动类类加载流程.png)
+
+所以可以看到，在 DriverManager 中要调用 DriverTest 的方法，并没有通过“父委派模型”去加载 DriverTest，而是由下层的类加载器自行完成类的加载。这里实际上是绕过了“父委派模型”的机制。
