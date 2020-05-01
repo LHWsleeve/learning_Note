@@ -17,10 +17,10 @@
   <component name="ProjectId" id="1a4dsF1DUXRpBY0X9pTYX4McsnV" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
-    <option name="showExcludedFiles" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
   <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="aspect.path.notification.shown" value="true" />
@@ -37,6 +37,20 @@
       <recent name="C:\Users\liuha\Documents\GitHub\Interview-EXP\Thread\Thread_code\src" />
     </key>
   </component>
+  <component name="RunManager">
+    <configuration name="TestForContent" type="Application" factoryName="Application" temporary="true" nameIsGenerated="true">
+      <option name="MAIN_CLASS_NAME" value="TestForContent" />
+      <module name="Thread_code" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Application.TestForContent" />
+      </list>
+    </recent_temporary>
+  </component>
   <component name="SvnConfiguration">
     <configuration />
   </component>
@@ -48,32 +62,33 @@
       <option name="presentableId" value="Default" />
       <updated>1585999004804</updated>
       <workItem from="1585999007335" duration="1328000" />
+      <workItem from="1588326377436" duration="115000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
-    <option name="version" value="1" />
+    <option name="version" value="2" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="552" y="178" key="#Project_Structure" timestamp="1585999720651">
+    <state x="552" y="178" key="#Project_Structure" timestamp="1588326416281">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state x="552" y="178" key="#Project_Structure/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1585999720651" />
+    <state x="552" y="178" key="#Project_Structure/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1588326416281" />
     <state x="414" y="174" key="#com.intellij.execution.impl.EditConfigurationsDialog" timestamp="1585999699233">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="414" y="174" key="#com.intellij.execution.impl.EditConfigurationsDialog/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1585999699233" />
-    <state x="481" y="368" key="FileChooserDialogImpl" timestamp="1586000334956">
+    <state x="481" y="368" key="FileChooserDialogImpl" timestamp="1588326486351">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state x="481" y="368" key="FileChooserDialogImpl/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1586000334956" />
-    <state x="181" y="188" key="SettingsEditor" timestamp="1585999710950">
+    <state x="481" y="368" key="FileChooserDialogImpl/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1588326486351" />
+    <state x="181" y="188" key="SettingsEditor" timestamp="1588326447809">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state x="181" y="188" key="SettingsEditor/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1585999710950" />
-    <state x="593" y="160" key="new project wizard" timestamp="1586000338525">
+    <state x="181" y="188" key="SettingsEditor/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1588326447809" />
+    <state x="228" y="132" key="new project wizard" timestamp="1588326492812">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state x="593" y="160" key="new project wizard/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1586000338525" />
+    <state x="228" y="132" key="new project wizard/0.0.1920.1040/1920.-245.2048.1112@0.0.1920.1040" timestamp="1588326492812" />
   </component>
 </project>
