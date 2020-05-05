@@ -18,11 +18,20 @@
 
 <!-- /TOC -->
 
-### redis 简介
+## redis 简介
 
 简单来说 redis 就是一个数据库，不过与传统数据库不同的是 redis 的数据是==存在内存==中的，所以读写速度非常快，因此 redis 被广泛应用于缓存方向。另外，redis 也经常用来做分布式锁。redis 提供了多种数据类型来支持不同的业务场景。除此之外，redis 支持事务 、持久化、LUA 脚本、LRU 驱动事件、多种集群方案。
 
-### 为什么要用 redis/为什么要用缓存
+### redis 优点
+
+1. 异常快 - Redis 非常快，每秒可执行大约 110000 次的设置(SET)操作，每秒大约可执行 81000 次的读取/获取(GET)操作。
+2. 支持丰富的数据类型 - Redis 支持开发人员常用的大多数数据类型，例如列表，集合，排序集和散列等等。这使得 Redis 很容易被用来解决各种问题，因为我们知道哪些问题可以更好使用地哪些数据类型来处理解决。
+3. 操作具有原子性 - ==所有 Redis 操作都是原子操作==，这确保如果两个客户端并发访问，Redis 服务器能接收更新的值。
+4. 多实用工具 - Redis 是一个多实用工具，可用于多种用例，如：缓存，消息队列(Redis 本地支持发布/订阅)，应用程序中的任何短期数据，例如，web 应用程序中的会话，网页命中计数等。
+
+## Redis 五种基本数据结构
+
+## 为什么要用 redis/为什么要用缓存
 
 主要从“高性能”和“高并发”这两点来看待这个问题。
 
@@ -48,7 +57,7 @@
 
 ![](http://my-blog-to-use.oss-cn-beijing.aliyuncs.com/18-9-24/85146760.jpg)
 
-### 为什么要用 redis 而不用 map/guava 做缓存?
+## 为什么要用 redis 而不用 map/guava 做缓存?
 
 > 下面的内容来自 segmentfault 一位网友的提问，地址：https://segmentfault.com/q/1010000009106416
 
@@ -61,7 +70,7 @@
 
 2. 其次，很多大型互联网公司的经验表明，数据库缓存带来的效率提升并不明显。因为更新频繁的表，缓存命中率很低；而指定数据库对哪些表用缓存、哪些表不用缓存，可能难度很大
 
-### redis 的线程模型
+## redis 的线程模型
 
 > 参考地址:https://www.javazhiyin.com/22943.html
 
@@ -76,7 +85,7 @@ redis 内部使用文件事件处理器 `file event handler`，这个文件事�
 
 多个 socket 可能会并发产生不同的操作，每个操作对应不同的文件事件，但是 IO 多路复用程序会监听多个 socket，会将 socket 产生的事件放入队列中排队，事件分派器每次从队列中取出一个事件，把该事件交给对应的事件处理器进行处理。
 
-### redis 和 memcached 的区别!
+## redis 和 memcached 的区别!
 
 对于 redis 和 memcached 我总结了下面四点。现在公司一般都是用 redis 来实现缓存，而且 redis 自身也越来越强大了！
 
@@ -89,9 +98,56 @@ redis 内部使用文件事件处理器 `file event handler`，这个文件事�
 
 ![redis 和 memcached 的区别](http://my-blog-to-use.oss-cn-beijing.aliyuncs.com/18-9-24/61603179.jpg)
 
-### redis 常见数据结构以及使用场景分析
+## redis 常见数据结构以及使用场景分析
 
-#### 1.String
+Redis 有 5 种基础数据结构，它们分别是：string(字符串)、list(列表)、hash(字典)、set(集合) 和 zset(有序集合)。
+
+### 1.String
+
+Redis 中的字符串是一种 **动态字符串**，这意味着使用者可以修改，它的底层实现有点类似于 Java 中的 ArrayList，有一个字符数组，从源码的 **sds.h/sdshdr 文件** 中可以看到 Redis 底层对于字符串的定义 SDS，即 Simple Dynamic String 结构：
+
+```c
+/* Note: sdshdr5 is never used, we just access the flags byte directly.
+ * However is here to document the layout of type 5 SDS strings. */
+struct __attribute__ ((__packed__)) sdshdr5 {
+    unsigned char flags; /* 3 lsb of type, and 5 msb of string length */
+    char buf[];
+};
+struct __attribute__ ((__packed__)) sdshdr8 {
+    uint8_t len; /* used */
+    uint8_t alloc; /* excluding the header and null terminator */
+    unsigned char flags; /* 3 lsb of type, 5 unused bits */
+    char buf[];
+};
+struct __attribute__ ((__packed__)) sdshdr16 {
+    uint16_t len; /* used */
+    uint16_t alloc; /* excluding the header and null terminator */
+    unsigned char flags; /* 3 lsb of type, 5 unused bits */
+    char buf[];
+};
+struct __attribute__ ((__packed__)) sdshdr32 {
+    uint32_t len; /* used */
+    uint32_t alloc; /* excluding the header and null terminator */
+    unsigned char flags; /* 3 lsb of type, 5 unused bits */
+    char buf[];
+};
+struct __attribute__ ((__packed__)) sdshdr64 {
+    uint64_t len; /* used */
+    uint64_t alloc; /* excluding the header and null terminator */
+    unsigned char flags; /* 3 lsb of type, 5 unused bits */
+    char buf[];
+};
+```
+
+**为什么不直接使用 int 类型呢？**
+
+因为当字符串比较短的时候，len 和 alloc 可以使用 byte 和 short 来表示，**Redis 为了对内存做极致的优化，不同长度的字符串使用不同的结构体来表示。**
+**SDS 与 C 字符串的区别**
+C 语言这种简单的字符串表示方式 不符合 Redis 对字符串在安全性、效率以及功能方面的要求,可能会造成如下问题：
+
+- **获取字符串长度为 O(N) 级别的操作** → 因为 C 不保存数组的长度，每次都需要遍历一遍整个数组；
+- **不能很好的杜绝 缓冲区溢出/内存泄漏 的问题** → 跟上述问题原因一样，如果执行拼接 or 缩短字符串的操作，如果操作不当就很容易造成上述问题；
+- **C 字符串 只能保存文本数据** → 因为 C 语言中的字符串必须符合某种编码（比如 ASCII），例如中间出现的 '\0' 可能会被判定为提前结束的字符串而识别不了；
 
 > **常用命令:** set,get,decr,incr,mget 等。
 
@@ -99,11 +155,13 @@ String 数据结构是简单的 key-value 类型，value 其实不仅可以是 S
 常规 key-value 缓存应用；
 常规计数：微博数，粉丝数等。
 
-#### 2.Hash
+### 2.字典 Hash
 
 > **常用命令：** hget,hset,hgetall 等。
 
-hash 是一个 string 类型的 field 和 value 的映射表，**hash 特别适合用于存储对象**，后续操作的时候，你可以直接仅仅修改这个对象中的某个字段的值。 比如我们可以 hash 数据结构来存储用户信息，商品信息等等。比如下面我就用 hash 类型存放了我本人的一些信息：
+Redis 中的字典相当于 Java 中的 **HashMap，**内部实现也差不多类似，都是通过 "**数组 + 链表**" 的链地址法来解决部分**哈希冲突**，同时这样的结构也吸收了两种不同数据结构的优点。源码定义如 dict.h/dictht 定义：
+
+hash 是一个 string 类型的 field 和 value 的映射表，**hash 特别适合用于存储对象**，后续操作的时候，你可以直接仅仅修改这个对象中的某个字段的值。 比如我们可以 hash 数据结构来存储用户信息，商品信息等等：
 
 ```
 key=JavaUser293847
@@ -116,22 +174,23 @@ value={
 
 ```
 
-#### 3.List
+### 3.List
 
 > **常用命令:** lpush,rpush,lpop,rpop,lrange 等
 
-list 就是链表，Redis list 的应用场景非常多，也是 Redis 最重要的数据结构之一，比如微博的关注列表，粉丝列表，消息列表等功能都可以用 Redis 的 list 结构来实现。
+Redis 的列表相当于 Java 语言中的 **LinkedList**，注意是链表而不是数组。**这意味着 list 的插入和删除操作非常快，时间复杂度为 O(1)，但是索引定位很慢，时间复杂度为 O(n)。**
+Redis list 的应用场景非常多，也是 Redis 最重要的数据结构之一，比如微博的关注列表，粉丝列表，消息列表等功能都可以用 Redis 的 list 结构来实现。
 
 Redis list 的实现为一个**双向链表，即可以支持反向查找和遍**历，更方便操作，不过带来了部分额外的内存开销。
 
 另外可以通过 lrange 命令，就是从某个元素开始读取多少个元素，**可以基于 list 实现分页查询，这个很棒的一个功能，基于 redis 实现简单的高性能分页**，可以做类似微博那种下拉不断分页的东西（一页一页的往下走），性能高。
 
-#### 4.Set
+### 4.Set
 
 > **常用命令：**
 > sadd,spop,smembers,sunion 等
-
-set 对外提供的功能与 list 类似是一个列表的功能，特殊之处在于 set 是可以**自动排重**的。
+> Redis 的集合**相当于 Java 语言中的 HashSet**，它内部的键值对是无序、唯一的。它的内部实现相当于一个特殊的字典，字典中所有的 value 都是一个值 NULL。
+> set 对外提供的功能与 list 类似是一个列表的功能，特殊之处在于 set 是可以**自动排重**的。
 
 当你需要存储一个列表数据，又不希望出现重复数据时，set 是一个很好的选择，并且 set 提供了**判断某个成员是否在一个 set 集合内**的重要接口，这个也是 list 所不能提供的。可以基于 set 轻易实现**交集、并集、差集**的操作。
 
@@ -141,15 +200,18 @@ set 对外提供的功能与 list 类似是一个列表的功能，特殊之处�
 sinterstore key1 key2 key3     将交集存在key1内
 ```
 
-#### 5.Sorted Set
+### 5.Sorted Set(Zset)
 
 > **常用命令：** zadd,zrange,zrem,zcard 等
 
-和 set 相比，sorted set 增加了一个权重参数 score，使得集合中的元素能够按 s**core 进行有序排列**。
+和 set 相比，sorted set 增加了一个权重参数 score，使得集合中的元素能够按 **score 进行有序排列**。
+类似于 Java 中 SortedSet 和 HashMap 的结合体，一方面它是一个 set，保证了内部 value 的唯一性，另一方面它可以为每个 value 赋予一个 score 值，用来代表排序的权重。
+
+内部实现用的是一种叫做 **「跳跃表」** 的数据结构--见目录，详解。
 
 **举例：** 在直播系统中，实时排行信息包含直播间在线用户列表，各种礼物排行榜，弹幕消息（可以理解为按消息维度的消息排行榜）等信息，适合使用 Redis 中的 Sorted Set 结构进行存储。
 
-### redis 设置过期时间
+## redis 设置过期时间
 
 Redis 中有个设置时间过期的功能，即对存储在 redis 数据库中的值可以设置一个过期时间。==作为一个缓存数据库，这是非常实用的。如我们一般项目中的 token 或者一些登录信息，尤其是短信验证码都是有时间限制的，按照传统的数据库处理方式，一般都是自己判断过期，这样无疑会严重影响项目性能。==
 
@@ -166,7 +228,7 @@ Redis 中有个设置时间过期的功能，即对存储在 redis 数据库中�
 
 但是仅仅通过设置过期时间还是有问题的。我们想一下：如果定期删除漏掉了很多过期 key，然后你也没及时去查，也就没走惰性删除，此时会怎么样？如果大量过期 key 堆积在内存里，导致 redis 内存块耗尽了。怎么解决这个问题呢？ ==**redis 内存淘汰机制。**==
 
-### redis 内存淘汰机制(MySQL 里有 2000w 数据，Redis 中只存 20w 的数据，如何保证 Redis 中的数据都是热点数据?)
+## redis 内存淘汰机制(MySQL 里有 2000w 数据，Redis 中只存 20w 的数据，如何保证 Redis 中的数据都是热点数据?)
 
 redis 配置文件 redis.conf 中有相关注释，我这里就不贴了，大家可以自行查阅或者通过这个网址查看： [http://download.redis.io/redis-stable/redis.conf](http://download.redis.io/redis-stable/redis.conf)
 
@@ -186,7 +248,7 @@ redis 配置文件 redis.conf 中有相关注释，我这里就不贴了，大�
 
 **备注： 关于 redis 设置过期时间以及内存淘汰机制，我这里只是简单的总结一下，后面会专门写一篇文章来总结！**
 
-### redis 持久化机制(==怎么保证 redis 挂掉之后再重启数据可以进行恢复==)
+## redis 持久化机制(==怎么保证 redis 挂掉之后再重启数据可以进行恢复==)
 
 很多时候我们需要持久化数据也就是将内存中的数据写入到硬盘里面，大部分原因是为了之后重用数据（比如重启机器、机器故障之后恢复数据），或者是为了防止系统故障而将数据备份到一个远程位置。
 
@@ -260,9 +322,9 @@ Redis 通过 MULTI、EXEC、WATCH 等命令来实现事务(transaction)功能。
 
 （来自[issue:关于 Redis 事务不是原子性问题](https://github.com/Snailclimb/JavaGuide/issues/452) ）
 
-### 缓存雪崩和缓存穿透问题解决方案
+## 缓存雪崩和缓存穿透问题解决方案
 
-#### **缓存雪崩**
+### **缓存雪崩**
 
 **什么是缓存雪崩？**
 
@@ -278,7 +340,7 @@ Redis 通过 MULTI、EXEC、WATCH 等命令来实现事务(transaction)功能。
 
 ![](http://my-blog-to-use.oss-cn-beijing.aliyuncs.com/18-9-25/6078367.jpg)
 
-#### **缓存穿透**
+### **缓存穿透**
 
 **什么是缓存穿透？**
 
@@ -326,12 +388,13 @@ public Object getObjectInclNullById(Integer id) {
 ```
 
 **2）布隆过滤器：**布隆过滤器是一个非常神奇的数据结构，通过它我们可以非常方便地判断一个给定数据是否存在与海量数据中。我们需要的就是判断 key 是否合法，有没有感觉布隆过滤器就是我们想要找的那个“人”。具体是这样做的：把所有可能存在的请求的值都存放在布隆过滤器中，当用户请求过来，我会先判断用户发来的请求的值是否存在于布隆过滤器中。不存在的话，直接返回请求参数错误信息给客户端，存在的话才会走下面的流程。总结一下就是下面这张图(这张图片不是我画的，为了省事直接在网上找的)：
+**布隆过滤器说某个元素存在，小概率会误判。布隆过滤器说某个元素不在，那么这个元素一定不在**
 
 <img src="https://my-blog-to-use.oss-cn-beijing.aliyuncs.com/2019-11/布隆过滤器-缓存穿透-redis.png" style="zoom:50%;" />
 
 更多关于布隆过滤器的内容可以看我的这篇原创：[《不了解布隆过滤器？一文给你整的明明白白！》](https://github.com/Snailclimb/JavaGuide/blob/master/docs/dataStructures-algorithms/data-structure/bloom-filter.md) ，强烈推荐，个人感觉网上应该找不到总结的这么明明白白的文章了。
 
-### 如何解决 Redis 的并发竞争 Key 问题
+## 如何解决 Redis 的并发竞争 Key 问题
 
 所谓 Redis 的并发竞争 Key 的问题也就是多个系统同时对一个 key 进行操作，但是最后执行的顺序和我们期望的顺序不同，这样也就导致了结果的不同！
 
@@ -345,7 +408,7 @@ public Object getObjectInclNullById(Integer id) {
 
 - https://www.jianshu.com/p/8bddd381de06
 
-### 如何保证缓存与数据库双写时的数据一致性?
+## 如何保证缓存与数据库双写时的数据一致性?
 
 > 一般情况下我们都是这样使用缓存的：先读缓存，缓存没有的话，就读数据库，然后取出数据后放入缓存，同时返回响应。这种方式很明显会存在缓存和数据库的数据不一致的情况。
 
@@ -353,13 +416,15 @@ public Object getObjectInclNullById(Integer id) {
 
 一般来说，就是如果你的系统不是严格要求缓存+数据库必须一致性的话，缓存可以稍微的跟数据库偶尔有不一致的情况，最好不要做这个方案,**读请求和写请求串行化，串到一个内存队列里去，这样就可以保证一定不会出现不一致的情况**
 
-串行化之后，就会导致系统的吞吐量会大幅度的降低，用比正常情况下多几倍的机器去支撑线上的一个请求。
+串行化之后，就==会导致系统的吞吐量会大幅度的降低==，用比正常情况下多几倍的机器去支撑线上的一个请求。
 
 更多内容可以查看：https://github.com/doocs/advanced-java/blob/master/docs/high-concurrency/redis-consistence.md
 
+## 跳跃表
+
 **参考：** Java 工程师面试突击第 1 季（可能是史上最好的 Java 面试突击课程）-中华石杉老师！公众号后台回复关键字“1”即可获取该视频内容。
 
-### 参考
+## 参考
 
 - 《Redis 开发与运维》
 - Redis 命令总结：http://redisdoc.com/string/set.html
