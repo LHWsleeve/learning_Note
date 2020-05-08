@@ -4,8 +4,9 @@ import java.util.concurrent.*;
  * 和countdownlatch和cyclicBarrier不同，内部计数器是递增的
  * 另外：semaphore也是可复用的。每次
  * semaphore.release()，会计数器+1.
- * semaphore.acquire(2);表示semaphore计数几次之后突破屏障，同时内部计数器再一次置为0
- * 可以继续 semaphore.release()---->达到复用的目的
+ * semaphore.acquire(2);表示semaphore计数几次之后突破屏障
+ * 但是semaphore的内部计数器是不可以自动重置的，但是可以通过更改acquire()的参数变相完成cyclicbarrier的回环效果。
+ * 例如release两次之后acquire(2),再release两次，此时参数是acquire(4)
  */
 public class semaphoreTest {
 private static Semaphore semaphore = new Semaphore(0);
@@ -18,7 +19,7 @@ private static Semaphore semaphore = new Semaphore(0);
         executorService.submit(new Runnable() {
             @Override
             public void run() {
-                System.out.println(Thread.currentThread()+"over");
+
                 semaphore.release();
             }
         });
