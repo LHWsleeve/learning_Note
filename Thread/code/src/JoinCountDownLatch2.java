@@ -46,7 +46,9 @@ private static CountDownLatch downLatch = new CountDownLatch(2);
             }
         });
         System.out.println("等待子线程执行结束");
+        //当调用了await()后只会在两种情况下返回。1. 子线程被中断，2.count计数器为0--->调用了syn的获取共享资源可中断的方法
         downLatch.await();
+
         System.out.println("所有子线程执行结束");
         poolExecutor.shutdown();
 
