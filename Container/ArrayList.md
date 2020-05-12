@@ -741,7 +741,7 @@ public class ArrayListDemo {
          //Integer[] integer2 = new Integer[arrayList.size()];
          //integer2 = arrayList.toArray();
          System.out.println();
-         
+
          // 在指定位置添加元素
          arrayList.add(2,2);
          // 删除指定位置上的元素
@@ -758,3 +758,79 @@ public class ArrayListDemo {
     }
 }
 ```
+## `ensureCapacity`方法
+
+ArrayList 源码中有一个 `ensureCapacity` 方法不知道大家注意到没有，==这个方法 ArrayList 内部没有被调用过，所以很显然是提供给用户调用的==， add 大量元素之前先计算一下最小所需要的容量，不需要反复扩容带来性能损失。
+
+```java
+    /**
+    如有必要，增加此 ArrayList 实例的容量，以确保它至少可以容纳由minimum capacity参数指定的元素数。
+     *
+     * @param   minCapacity   所需的最小容量
+     */
+    public void ensureCapacity(int minCapacity) {
+        int minExpand = (elementData != DEFAULTCAPACITY_EMPTY_ELEMENTDATA)
+            // any size if not default element table
+            ? 0
+            // larger than default for default empty table. It's already
+            // supposed to be at default size.
+            : DEFAULT_CAPACITY;
+
+        if (minCapacity > minExpand) {
+            ensureExplicitCapacity(minCapacity);
+        }
+    }
+
+```
+
+**最好在 add 大量元素之前用 `ensureCapacity` 方法，以减少增量重新分配的次数**
+
+我们通过下面的代码实际测试以下这个方法的效果：
+
+```java
+public class EnsureCapacityTest {
+	public static void main(String[] args) {
+		ArrayList<Object> list = new ArrayList<Object>();
+		final int N = 10000000;
+		long startTime = System.currentTimeMillis();
+		for (int i = 0; i < N; i++) {
+			list.add(i);
+		}
+		long endTime = System.currentTimeMillis();
+		System.out.println("使用ensureCapacity方法前："+(endTime - startTime));
+
+	}
+}
+```
+
+运行结果：
+
+```
+使用ensureCapacity方法前：2158
+```
+
+```java
+public class EnsureCapacityTest {
+    public static void main(String[] args) {
+        ArrayList<Object> list = new ArrayList<Object>();
+        final int N = 10000000;
+        list = new ArrayList<Object>();
+        long startTime1 = System.currentTimeMillis();
+        list.ensureCapacity(N);
+        for (int i = 0; i < N; i++) {
+            list.add(i);
+        }
+        long endTime1 = System.currentTimeMillis();
+        System.out.println("使用ensureCapacity方法后："+(endTime1 - startTime1));
+    }
+}
+```
+
+运行结果：
+
+```
+
+使用ensureCapacity方法前：1773
+```
+
+通过运行结果，我们可以看出向 ArrayList 添加大量元素之前最好先使用`ensureCapacity` 方法，以减少增量重新分配的次数。
