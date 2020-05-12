@@ -1,19 +1,30 @@
 <!-- MarkdownTOC -->
 
+- [快速失败机制](#%e5%bf%ab%e9%80%9f%e5%a4%b1%e8%b4%a5%e6%9c%ba%e5%88%b6)
 - [ArrayList简介](#arraylist%e7%ae%80%e4%bb%8b)
 - [ArrayList核心源码](#arraylist%e6%a0%b8%e5%bf%83%e6%ba%90%e7%a0%81)
 - [<font face="楷体" id="1" id="5">ArrayList源码分析</font>](#font-face%22%e6%a5%b7%e4%bd%93%22-id%221%22-id%225%22arraylist%e6%ba%90%e7%a0%81%e5%88%86%e6%9e%90font)
   - [System.arraycopy()和Arrays.copyOf()方法](#systemarraycopy%e5%92%8carrayscopyof%e6%96%b9%e6%b3%95)
     - [两者联系与区别](#%e4%b8%a4%e8%80%85%e8%81%94%e7%b3%bb%e4%b8%8e%e5%8c%ba%e5%88%ab)
-  - [ArrayList 核心扩容技术](#arraylist-%e6%a0%b8%e5%bf%83%e6%89%a9%e5%ae%b9%e6%8a%80%e6%9c%af)
+  - [ArrayList 核心扩容技术（JDK12 已经变化了扩容技术，使用grow()）](#arraylist-%e6%a0%b8%e5%bf%83%e6%89%a9%e5%ae%b9%e6%8a%80%e6%9c%afjdk12-%e5%b7%b2%e7%bb%8f%e5%8f%98%e5%8c%96%e4%ba%86%e6%89%a9%e5%ae%b9%e6%8a%80%e6%9c%af%e4%bd%bf%e7%94%a8grow)
   - [内部类](#%e5%86%85%e9%83%a8%e7%b1%bb)
 - [<font face="楷体" id="6"> ArrayList经典Demo</font>](#font-face%22%e6%a5%b7%e4%bd%93%22-id%226%22-arraylist%e7%bb%8f%e5%85%b8demofont)
 
 <!-- /MarkdownTOC -->
+### 快速失败机制
+Collection中我们时常会看到类似于这样的话：
 
+ 例如，ArrayList,HashMap
+
+>注意，迭代器的快速失败行为无法得到保证，因为一般来说，不可能对是否出现不同步并发修改做出任何硬性保证。快速失败迭代器会尽最大努力抛出 ConcurrentModificationException。因此，为提高这类迭代器的正确性而编写一个依赖于此异常的程序是错误的做法：迭代器的快速失败行为应该仅用于检测 bug。
+
+快速失败”也就是**fail-fast**，它是Java集合的一种错误检测机制。当多个线程对集合进行结构上的改变的操作时，有可能会产生fail-fast机制。记住是有可能，而不是一定。例如：假设存在两个线程（线程1、线程2），线程1通过Iterator在遍历集合A中的元素，在某个时候线程2修改了集合A的结构（是结构上面的修改，而不是简单的修改集合元素的内容），那么这个时候程序就会抛出 ConcurrentModificationException 异常，从而产生fail-fast机制。
 
 ### ArrayList简介
 　　ArrayList 的底层是数组队列，相当于动态数组。与 Java 中的数组相比，它的容量能动态增长。在添加大量元素前，应用程序可以使用`ensureCapacity`操作来增加 ArrayList 实例的容量。这可以减少递增式再分配的数量。
+**ArrayList根据index查找和更改效率高，增删效率低。增删由ystem.arraycopy实现，增:扩容+1，插到末尾，指定位置增和删，都是全部移位，类似重建数组。**
+
+
     
    它继承于 **AbstractList**，实现了 **List**, **RandomAccess**, **Cloneable**, **java.io.Serializable** 这些接口。
     
@@ -112,7 +123,8 @@ public class ArrayList<E> extends AbstractList<E>
      * 修改这个ArrayList实例的容量是列表的当前大小。 应用程序可以使用此操作来最小化ArrayList实例的存储。 
      */
     public void trimToSize() {
-        // modCount主要是为了防止在迭代过程中通过List的方法（非迭代器）改变了原集合，导致出现不可预料的情况，从而提前抛出并发修改异常，注意是“提前“，这可能也是Fail-Fast机制命名的由来。
+        // modCount主要是为了防止在迭代过程中通过List的方法（非迭代器）改变了原集合，导致出现不可预料的情况，
+        //从而提前抛出并发修改异常，注意是“提前“，这可能也是Fail-Fast机制命名的由来。
         //所有线程不安全的内部实现都有modCount
         modCount++;
         if (size < elementData.length) {
@@ -171,7 +183,10 @@ public class ArrayList<E> extends AbstractList<E>
         // oldCapacity为旧容量，newCapacity为新容量
         int oldCapacity = elementData.length;
         //将oldCapacity 右移一位，其效果相当于oldCapacity /2，
-        //我们知道位运算的速度远远快于整除运算，整句运算式的结果就是将新容量更新为旧容量的1.5倍，
+        //我们知道位运算的速度远远快于整除运算，整句运算式的结果就是将新容量更新为旧容量的1.5倍，！！！！
+        //
+        //注意，如果旧数组扩1.5之后还是小于所需的最小容量，那么直接把最小需要容量当作新容量
+    
         int newCapacity = oldCapacity + (oldCapacity >> 1);
         //然后检查新容量是否大于最小需要容量，若还是小于最小需要容量，那么就把最小需要容量当作数组的新容量，
         if (newCapacity - minCapacity < 0)
@@ -250,7 +265,7 @@ public class ArrayList<E> extends AbstractList<E>
     }
 
     /**
-     * 返回此ArrayList实例的浅拷贝。 （元素本身不被复制。） 
+     * 返回此ArrayList实例的浅拷贝。 ！（元素本身不被复制。） ！
      */
     public Object clone() {
         try {
@@ -337,15 +352,20 @@ public class ArrayList<E> extends AbstractList<E>
      *先调用 rangeCheckForAdd 对index进行界限检查；然后调用 ensureCapacityInternal 方法保证capacity足够大；
      *再将从index开始之后的所有成员后移一个位置；将element插入index位置；最后size加1。
      */
-    public void add(int index, E element) {
+    public void add(int index, E element) {    
         rangeCheckForAdd(index);
-
-        ensureCapacityInternal(size + 1);  // Increments modCount!!
-        //arraycopy()这个实现数组之间复制的方法一定要看一下，下面就用到了arraycopy()方法实现数组自己复制自己
-        System.arraycopy(elementData, index, elementData, index + 1,
-                         size - index);
+        //increment++
+        modCount++;
+        final int s;
+        Object[] elementData;
+        if ((s = size) == (elementData = this.elementData).length)
+            elementData = grow();
+            //arraycopy()这个实现数组之间复制的方法一定要看一下，下面就用到了arraycopy()方法实现数组自己复制自己
+        System.arraycopy(elementData, index,
+                         elementData, index + 1,
+                         s - index);
         elementData[index] = element;
-        size++;
+        size = s + 1;
     }
 
     /**
@@ -379,6 +399,7 @@ public class ArrayList<E> extends AbstractList<E>
                 }
         } else {
             for (int index = 0; index < size; index++)
+            //对于非null，要用wquals比较，所以分成了两个判断
                 if (o.equals(elementData[index])) {
                     fastRemove(index);
                     return true;
@@ -573,7 +594,7 @@ public class ArrayList<E> extends AbstractList<E>
 **区别：**
 1. arraycopy()需要目标数组，将原数组拷贝到你自己定义的数组里，而且可以选择拷贝的起点和长度以及放入新数组中的位置
 2. copyOf()是系统自动在内部新建一个数组，并返回该数组。
-#### ArrayList 核心扩容技术
+#### ArrayList 核心扩容技术（JDK12 已经变化了扩容技术，使用grow()）
 ```java
 //下面是ArrayList的扩容机制
 //ArrayList的扩容机制提高了性能，如果每次只扩充一个，
@@ -701,7 +722,8 @@ public class ArrayListDemo {
          }
          System.out.println();
 
-         // 第三种：for循环遍历
+         // 第三种：foreach循环遍历，注意不允许使用foreach修改list
+         //本质上这个number是一个指针(指向迭代器中的数组的指针)，只想arraylist数组，所以修改number只会修改指针的指向，而对数组本身无影响。我们应该直接使用 foreach的内部实现迭代器来直接便利，并修改。
          System.out.print("for循环遍历:");
          for(Integer number : arrayList){
              System.out.print(number + " ");
@@ -719,7 +741,7 @@ public class ArrayListDemo {
          //Integer[] integer2 = new Integer[arrayList.size()];
          //integer2 = arrayList.toArray();
          System.out.println();
-
+         
          // 在指定位置添加元素
          arrayList.add(2,2);
          // 删除指定位置上的元素
