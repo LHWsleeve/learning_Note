@@ -14,7 +14,21 @@
 <!-- /MarkdownTOC -->
 
 ## HashMap 简介
-HashMap 主要用来存放键值对，它基于哈希表的Map接口实现</font>，是常用的Java集合之一。 
+HashMap 主要用来存放键值对，它基于哈希表的Map接口实现</font>，是常用的Java集合之一。 Java为数据结构中的映射定义了一个接口java.util.Map，此接口主要有四个常用的实现类，分别是HashMap、Hashtable、LinkedHashMap和TreeMap，类继承关系如下图所示：
+![asserts/map.png](asserts/map.png)
+
+- **HashMap：** 它根据键的hashCode值存储数据，大多数情况下可以直接定位到它的值，因而具有很快的访问速度，**但遍历顺序却是不确定的**。 **HashMap最多只允许一条记录的键为null，允许多条记录的值为null。** HashMap非线程安全，即任一时刻可以有多个线程同时写HashMap，可能会导致数据的不一致(JDK8前可能会导致死循，HashMap在多线程并发put的情况下可能会形成环形链表环)。如果需要满足线程安全，可以用 Collections的synchronizedMap方法使HashMap具有线程安全的能力，或者使用ConcurrentHashMap。
+
+- **Hashtable：** Hashtable是遗留类，很多映射的常用功能与HashMap类似，不同的是它承自Dictionary类，并且是线程安全的(==单纯使用synchronized枷锁==)，任一时间只有一个线程能写Hashtable，并发性不如ConcurrentHashMap，因为ConcurrentHashMap引入了**分段锁**(==JDK1.8取消了分段锁，采用synchronzied和CAS保证线程安全，底层数据结构依然是数组+链表+红黑树==)。
+- Hashtable不建议在新代码中使用，不需要线程安全的场合可以用HashMap替换，需要线程安全的场合可以用ConcurrentHashMap替换。
+**原理上来说：1.7JKD，ConcurrentHashMap 采用了分段锁技术，其中 Segment 继承于 ReentrantLock。** 不会像 HashTable 那样不管是 put 还是 get 操作都需要做同步处理，理论上 ConcurrentHashMap 支持 CurrencyLevel (Segment 数组数量)的线程并发。每当一个线程占用锁访问一个 Segment 时，不会影响到其他的 Segment。
+**JDK8，抛弃了原有的 Segment 分段锁，而采用了 CAS + synchronized(节点内变量使用volatile 修饰保证可见性) 来保证并发安全性。**
+
+- **LinkedHashMap：** LinkedHashMap是HashMap的一个子类，保存了记录的插入顺序，在用Iterator遍历LinkedHashMap时，先得到的记录肯定是先插入的，也可以在构造时带参数，按照访问次序排序。
+
+- **TreeMap：** TreeMap实现SortedMap接口，能够把它保存的记录根据键排序，默认是按键值的升序排序，也可以指定排序的比较器，当用Iterator遍历TreeMap时，得到的记录是排过序的。如果使用排序的映射，建议使用TreeMap。在使用TreeMap时，key必须实现Comparable接口或者在构造TreeMap传入自定义的Comparator，否则会在运行时抛出java.lang.ClassCastException类型的异常。
+
+对于上述四种Map类型的类，要求映射中的key是不可变对象。不可变对象是该对象在创建后它的哈希值不会被改变。如果对象的哈希值发生变化，Map对象很可能就定位不到映射的位置了
 
 JDK1.8 之前 HashMap 由 数组+链表 组成的，数组是 HashMap 的主体，链表则是主要为了解决哈希冲突而存在的（“拉链法”解决冲突）.JDK1.8 以后在解决哈希冲突时有了较大的变化，当链表长度大于阈值（默认为 8）时，将链表转化为红黑树，以减少搜索时间。
 
@@ -27,7 +41,7 @@ JDK1.8 之前 HashMap 底层是 **数组和链表** 结合在一起使用也就�
 **JDK 1.8 HashMap 的 hash 方法源码:**
 
 JDK 1.8 的 hash方法 相比于 JDK 1.7 hash 方法更加简化，但是原理不变。
-
+计算hashcode，高16位和低16位异或
   ```java
       static final int hash(Object key) {
         int h;
@@ -94,9 +108,9 @@ public class HashMap<K,V> extends AbstractMap<K,V> implements Map<K,V>, Cloneabl
 ```
 - **loadFactor加载因子**
 
-  loadFactor加载因子是控制数组存放数据的疏密程度，loadFactor越趋近于1，那么   数组中存放的数据(entry)也就越多，也就越密，也就是会让链表的长度增加，loadFactor越小，也就是趋近于0，数组中存放的数据(entry)也就越少，也就越稀疏。
+  loadFactor加载因子是**控制数组存放数据的疏密程度**，loadFactor越趋近于1，那么数组中存放的数据(entry)也就越多，也就越密，也就是会让链表的长度增加，loadFactor越小，也就是趋近于0，数组中存放的数据(entry)也就越少，也就越稀疏。
 
-  **loadFactor太大导致查找元素效率低，太小导致数组的利用率低，存放的数据会很分散。loadFactor的默认值为0.75f是官方给出的一个比较好的临界值**。 
+  **loadFactor太大导致查找元素效率低，太小导致数组的利用率低，存放的数据会很分散。loadFactor的默认值为0.75f是官方给出的一个比较好的临                界值**。 
   
   给定的默认容量为 16，负载因子为 0.75。Map 在使用过程中不断的往里面存放数据，当数量达到了 16 * 0.75 = 12 就需要将当前 16 的容量进行扩容，而扩容这个过程涉及到 rehash、复制数据等操作，所以非常消耗性能。
 
