@@ -2,19 +2,6 @@
 [toc]
 # 图解HTTP
 
-### 题目
-
-- HTTP 协议状态码有哪些分别代表什么意思
-- HTTP幂等性及[GET、POST、PUT、DELETE、PATCH](https://juejin.im/entry/57fec6850e3dd90057e1e47e)的区别和有无幂等性
-- HTTP缓存机制[
-- HTTP 是无状态的,说明它不能以状态来区分和管理请求和响应。也就是说，服务器单从网络连接上无从知道客户身份。[服务器怎么记住上次请求的用户](https://juejin.im/post/5aa783b76fb9a028d663d70a)
-- http 存在的安全问题有哪些，https 如何解决安全问题
-- [restful风格](https://www.zhihu.com/question/28557115)-核心思想其实是把网页请求当成资源
-- [TCP协议的TIME_WAIT状态详解](https://blog.51cto.com/11859650/1917938)
-- [三次握手，四次挥手/tcp 和 udp 的区别](https://juejin.im/post/5d9c284b518825095879e7a5#heading-12)
-- TCP/IP 的五层协议模型和 OSI 的七层协议模型了解么？TCP 协议在哪一层？--TCP 协议拥塞--网络层的滑动窗口协议
-- [DNS 实现的机制](https://juejin.im/post/5b0a32a36fb9a07ab979f0b4)
-- [TCP 怎么保证可靠传输](https://zhuanlan.zhihu.com/p/104929583)
 
 ### 一、在浏览器中输入url地址 ->> 显示主页的过程
 ![asserts/url.webp](asserts/url.webp)
@@ -505,3 +492,17 @@ HttpOnly|使JavaScript 脚本无法获得Cookie
 - 对于服务端来说，拿到session ID之后就可以跟存储在数据库的session ID进行比较，进而判断这个用户是否合法，并且获取该用户其相应的信息，通过接口返回到客户端去。
   
 为什么说cookie是目前实现session机制主流方案里面的一个参与者呢？因为还有一种方案就是==通过URL来保存和传递session ID==。这种方案是为了应对万一浏览器的js被禁用的极端情况！采用这种方案后，那么每次HTTP交互，URL后面都会被附加上一个诸如 sid=xxxxx 这样的参数以供服务端获取并识别用户身份。
+
+### ---
+
+- HTTP 协议状态码有哪些分别代表什么意思
+- HTTP幂等性及[GET、POST、PUT、DELETE、PATCH](https://juejin.im/entry/57fec6850e3dd90057e1e47e)的区别和有无幂等性
+- HTTP缓存机制[
+- HTTP 是无状态的,说明它不能以状态来区分和管理请求和响应。也就是说，服务器单从网络连接上无从知道客户身份。[服务器怎么记住上次请求的用户](https://juejin.im/post/5aa783b76fb9a028d663d70a)
+- http 存在的安全问题有哪些，https 如何解决安全问题
+- [restful风格](https://www.zhihu.com/question/28557115)-核心思想其实是把网页请求当成资源
+- [TCP协议的TIME_WAIT状态详解](https://blog.51cto.com/11859650/1917938)
+- [三次握手，四次挥手/tcp 和 udp 的区别](https://juejin.im/post/5d9c284b518825095879e7a5#heading-12)
+- TCP/IP 的五层协议模型和 OSI 的七层协议模型了解么？TCP 协议在哪一层？--TCP 协议拥塞--网络层的滑动窗口(流量控制)协议
+- [DNS 实现的机制](https://juejin.im/post/5b0a32a36fb9a07ab979f0b4)
+- [TCP 怎么保证可靠传输](https://zhuanlan.zhihu.com/p/104929583)
