@@ -1,3 +1,5 @@
+[TOC]
+
 ### 1.Java 面向对象编程三大特性: 封装 继承 多态
 
 #### 封装
@@ -383,11 +385,12 @@ String s = input.readLine();
 
 ### 17.final,static,this,super 关键字总结(重要)
 
-[basic/关键字总结.md](basic/关键字总结.md)
+[关键字总结.md](关键字总结.md)
 
 ### 18. Collections 工具类和 Arrays 工具类常见方法总结(重要)
 
-[basic/工具类总结.md](basic/工具类总结.md)
+
+[工具类总结.md](工具类总结.md)
 
 ### 19。深拷贝 vs 浅拷贝
 
