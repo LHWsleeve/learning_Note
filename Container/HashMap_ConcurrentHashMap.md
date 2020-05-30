@@ -544,7 +544,9 @@ ConcurrentHashMap分为 1.7 、1.8 版
 ### Base 1.7
 ![asserts/concurrentHashMap结构图.webp](asserts/concurrentHashMap结构图.webp)
 如图所示，是由 Segment 数组、HashEntry 组成，和 HashMap 一样，仍然是数组加链表。
-核心成员变量
+核心成员变量![asserts/concurrenthashmap.png](asserts/concurrenthashmap.png)
+
+**每个segment下会有一个hashEntry，每次对数组中的一个节点加锁，然后操作内部的hashentry**
 ```java
 **
  * Segment 数组，存放数据时首先需要定位到具体的 Segment 中。
@@ -558,7 +560,7 @@ Segment 是 ConcurrentHashMap 的一个内部类，主要的组成如下：
  static final class Segment<K,V> extends ReentrantLock implements Serializable {
        private static final long serialVersionUID = 2249069246763182397L;
     
-       // 和 HashMap 中的 HashEntry 作用一样，真正存放数据的桶，HashMap 非常类似，
+       // HashEntry数组类似一个hashmap， hashEntry的每个节点是真正存放数据的桶
        //唯一的区别就是其中的核心数据如 value ，以及链表都是 volatile 修饰的，保证了获取时的可见性。
        transient volatile HashEntry<K,V>[] table;
        transient int count;
@@ -675,6 +677,8 @@ public V get(Object key) {
 ![asserts/ConcurrentHashMap1.8结构图.webp](asserts/ConcurrentHashMap1.8结构图.webp)
 其中抛弃了原有的 Segment 分段锁，而采用了 `CAS` + `synchronized` 来保证并发安全性。也将 1.7 中存放数据的 `HashEntry` 改为 `Node` ，但作用都是相同的。
 其中的 `val` `next` 都用了 `volatile` 修饰，保证了可见性。
+![asserts/2.png](asserts/2.png)
+
 ```java
  static class Node<K,V> implements Map.Entry<K,V> {
         final int hash;
