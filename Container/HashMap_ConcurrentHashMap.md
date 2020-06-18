@@ -27,8 +27,9 @@ JDK1.8 之前 HashMap 底层是 **数组和链表** 结合在一起使用也就�
 
 **JDK 1.8 HashMap 的 hash 方法源码:**
 
-JDK 1.8 的 hash方法 相比于 JDK 1.7 hash 方法更加简化，但是原理不变。
-计算hashcode，高16位和低16位异或
+**JDK 1.8 的 hash方法 相比于 JDK 1.7 hash 方法更加简化，但是原理不变。**
+JDK1.8的实现中，优化了高位运算的算法，通过hashCode()的高16位异或低16位实现的,主要是从速度、功效、质量来考虑的，这么做可以在数组table的length比较小的时候，也能保证考虑到高低Bit都参与到Hash的计算中，同时不会有太大的开销。
+下面举例说明下，n为table的长度。
   ```java
       static final int hash(Object key) {
         int h;
@@ -54,6 +55,8 @@ static int hash(int h) {
 相比于 JDK1.8 的 hash 方法 ，JDK 1.7 的 hash 方法的性能会稍差一点点，因为毕竟扰动了 4 次。
 
 所谓 **“拉链法”** 就是：将链表和数组相结合。也就是说创建一个链表数组，数组中每一格就是一个链表。若遇到哈希冲突，则将冲突的值加到链表中即可。
+**JDK1.7使用了单链表的头插入方式**，同一位置上新元素总会被放在链表的头部位置；这样先放在一个索引上的元素终会被放到Entry链的尾部(如果发生了hash冲突的话），这一点和Jdk1.8有区别。在旧数组中同一条Entry链上的元素，通过重新计算索引位置后，有可能被放到了新数组的不同位置上。
+<font color="red">JDK1.8之后链表插入方式变成尾插：1.resize情况头插法可能会造成自己指向自己的死循环，2.原先的头查可能是为了获得热点数据，但是resize之后头会变成尾，这就无意义了。</font>
 
 ![jdk1.8之前的内部结构](https://my-blog-to-use.oss-cn-beijing.aliyuncs.com/2019-7/jdk1.8之前的内部结构.png)
 
@@ -104,6 +107,12 @@ public class HashMap<K,V> extends AbstractMap<K,V> implements Map<K,V>, Cloneabl
 - **threshold**
 
   **threshold = capacity * loadFactor**，**当Size>=threshold**的时候，那么就要考虑对数组的扩增了，也就是说，这个的意思就是 **衡量数组是否需要扩增的一个标准**。
+
+
+经过观测可以发现，我们使用的是2次幂的扩展(指长度扩为原来2倍)，所以，**元素的位置要么是在原位置，要么是在原位置再移动2次幂的位置,**  <font color="red" ><b>因此，我们在扩充HashMap的时候，不需要像JDK1.7的实现那样重新计算hash，只需要看看原来的hash值新增的那个bit是1还是0就好了，是0的话索引没变，是1的话索引变成“原索引+oldCap”</font></b>.既省去了重新计算hash值的时间，而且同时，由于新增的1bit是0还是1可以认为是随机的，因此resize的过程，均匀的把之前的冲突的节点分散到新的bucket了。
+**有一点注意区别**，JDK1.7中rehash的时候，旧链表迁移新链表的时候，如果在新表的数组索引位置相同，则链表元素会倒置，但是从上图可以看出，JDK1.8不会倒置。
+
+
 
 **Node节点类源码:**
 
