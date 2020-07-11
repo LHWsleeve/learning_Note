@@ -5,7 +5,7 @@
 HashMap 主要用来存放键值对，它基于哈希表的 Map 接口实现</font>，是常用的 Java 集合之一。 Java 为数据结构中的映射定义了一个接口 java.util.Map，此接口主要有四个常用的实现类，分别是 HashMap、Hashtable、LinkedHashMap 和 TreeMap，类继承关系如下图所示：
 ![asserts/map.png](asserts/map.png)
 
-- **HashMap：** 它根据键的 hashCode 值存储数据，大多数情况下可以直接定位到它的值，因而具有很快的访问速度，**但遍历顺序却是不确定的**。 **HashMap 最多只允许一条记录的键为 null，允许多条记录的值为 null。** HashMap 非线程安全，即任一时刻可以有多个线程同时写 HashMap，可能会导致数据的不一致(JDK8 前可能会导致死循，HashMap 在多线程并发 put 的情况下可能会形成环形链表环)。如果需要满足线程安全，可以用 Collections 的 synchronizedMap 方法使 HashMap 具有线程安全的能力，或者使用 ConcurrentHashMap。
+- **HashMap：** 它根据键的 hashCode 值存储数据，大多数情况下可以直接定位到它的值，因而具有很快的访问速度，**但遍历顺序却是不确定的**。 **HashMap 最多只允许一条记录的键为 null，允许多条记录的值为 null。** HashMap 非线程安全，即任一时刻可以有多个线程同时写 HashMap，可能会导致数据的不一致(==JDK8 前可能会导致死循，HashMap 在多线程并发 put 的情况下可能会形成环形链表环==,1.8中hashmap的确不会因为多线程put导致死循环，但是依然有其他的弊端，比如数据丢失等等)。如果需要满足线程安全，可以用 Collections 的 synchronizedMap 方法使 HashMap 具有线程安全的能力，或者使用 ConcurrentHashMap。
 
 - **Hashtable：** Hashtable 是遗留类，很多映射的常用功能与 HashMap 类似，不同的是它承自 Dictionary 类，并且是线程安全的(==单纯使用 synchronized 枷锁==)，任一时间只有一个线程能写 Hashtable，并发性不如 ConcurrentHashMap，因为 ConcurrentHashMap 引入了**分段锁**(==JDK1.8 取消了分段锁，采用 synchronzied 和 CAS 保证线程安全，底层数据结构依然是数组+链表+红黑树==)。
 - Hashtable 不建议在新代码中使用，不需要线程安全的场合可以用 HashMap 替换，需要线程安全的场合可以用 ConcurrentHashMap 替换。
