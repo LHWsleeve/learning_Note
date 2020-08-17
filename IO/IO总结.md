@@ -153,7 +153,7 @@ public class IOServer {
 
 ### 2.1 NIO 简介
 
- NIO是一种==同步非阻塞的I/O模型==，在Java 1.4 中引入了NIO框架，对应 java.nio 包，提供了 Channel , Selector，Buffer等抽象。
+ NIO是一种==同步非阻塞的I/O模型==，在Java 1.4 中引入了NIO框架，对应 java.nio 包，提供了 Channel , Selector，Buffer等抽象类。
  
 NIO中的N可以理解为Non-blocking，不单纯是New。它**支持面向缓冲的，基于通道的I/O操作方法**。 NIO提供了与传统BIO模型中的 `Socket` 和 `ServerSocket` 相对应的 `SocketChannel` 和 `ServerSocketChannel` **两种不同的套接字通道实现,两种通道都支持阻塞和非阻塞两种模式**。
 阻塞模式使用就像传统中的支持一样，比较简单，但是性能和可靠性都不好；
@@ -163,6 +163,7 @@ NIO中的N可以理解为Non-blocking，不单纯是New。它**支持面向缓�
 ### 2.2 NIO的特性/NIO与IO区别
 
 如果是在面试中回答这个问题，我觉得首先肯定要从 NIO 流是非阻塞 IO 而 IO 流是阻塞 IO 说起。然后，可以从 NIO 的3个核心组件/特性为 NIO 带来的一些改进来分析。如果，你把这些都回答上了我觉得你对于 NIO 就有了更为深入一点的认识，面试官问到你这个问题，你也能很轻松的回答上来了。
+==另外非阻塞只是针对套接字的，文件IO还是阻塞的，只是从面向字节流变成了面向缓冲区==
 
 #### 1)Non-blocking IO（非阻塞IO）
 
@@ -175,22 +176,49 @@ Java IO的各种流是阻塞的。这意味着，当一个线程调用 `read()` 
 #### 2)Buffer(缓冲区)
 
 **IO 面向流(Stream oriented)，而 NIO 面向缓冲区(Buffer oriented)。**
+Bufer用于和NIO通道进行交互，数据是从通道读入缓冲区，从缓冲区写入到通道中。
+**缓冲区本质上是一块可以写入数据，然后可以从中读取数据的内存。这块内存被包装成NIO Buffer对象，并提供了一组方法，用来方便的访问该块内存。**
+==Buffer是一个对象==，它包含一些要写入或者要读出的数据。在NIO类库中加入Buffer对象，体现了新库与原I/O的一个重要区别。在面向流的I/O中·可以将数据直接写入或者将数据直接读到 Stream 对象中。虽然 Stream 中也有 Buffer 开头的扩展类，但只是流的包装类，还是从流读到缓冲区，而 NIO 却是直接读到 Buffer 中进行操作。
 
-Buffer是一个对象，它包含一些要写入或者要读出的数据。在NIO类库中加入Buffer对象，体现了新库与原I/O的一个重要区别。在面向流的I/O中·可以将数据直接写入或者将数据直接读到 Stream 对象中。虽然 Stream 中也有 Buffer 开头的扩展类，但只是流的包装类，还是从流读到缓冲区，而 NIO 却是直接读到 Buffer 中进行操作。
+**Buffer的三个属性：**
+- capacity
+- position
+- limit
 
-在NIO厍中，所有数据都是用缓冲区处理的。在读取数据时，它是直接读到缓冲区中的; 在写入数据时，写入到缓冲区中。任何时候访问NIO中的数据，都是通过缓冲区进行操作。
+后两者的含义取决于buffer是读模式还是写模式。
+**capacity**
+- 作为一个内存块，Buffer有一个固定的大小值，也叫“capacity”.你只能往里写capacity个byte、long，char等类型。一旦Buffer满了，需要将其清空（通过读数据或者清除数据）才能继续写数据往里写数据。
+
+**position**
+- 当你写数据到Buffer中时，position表示当前的位置。初始的position值为0.当一个byte、long等数据写到Buffer后， position会向前移动到下一个可插入数据的Buffer单元。position最大可为capacity – 1.
+- 当读取数据时，也是从某个特定位置读。当将Buffer从写模式切换到读模式，position会被重置为0. 当从Buffer的position处读取数据时，position向前移动到下一个可读的位置。
+
+**limit**
+- ==在写模式下，Buffer的limit表示你最多能往Buffer里写多少数据==。 写模式下，limit等于Buffer的capacity。
+- ==当切换Buffer到读模式时， limit表示你最多能读到多少数据==。因此，当切换Buffer到读模式时，limit会被设置成写模式下的position值。换句话说，你能读到之前写入的所有数据（limit被设置成已写数据的数量，这个值在写模式下就是position）
+
+在NIO库中，所有数据都是用缓冲区处理的。在读取数据时，它是直接读到缓冲区中的; 在写入数据时，写入到缓冲区中。任何时候访问NIO中的数据，都是通过缓冲区进行操作。
 
 最常用的缓冲区是 ByteBuffer,一个 ByteBuffer 提供了一组功能用于操作 byte 数组。除了ByteBuffer,还有其他的一些缓冲区，事实上，每一种Java基本类型（除了Boolean类型）都对应有一种缓冲区。
 
 #### 3)Channel (通道)
+NIO的通告类似流，但又有些不同：
+- 既可以从通道中读取，又可以写数据到通道。但流的读写通常是单向的。
+- 通道可以异步读写
+- 通道中多个数据总是要先读到一个buffer，或者总是从一个buffer中写入。
 
-NIO 通过Channel（通道） 进行读写。
-
-通道是双向的，可读也可写，而流的读写是单向的。无论读写，通道只能和Buffer交互。因为 Buffer，通道可以异步地读写。
+Channel的实现类有很多，` FileChannel`,`SocketChannel`，等。
+**如果两个通道中有一个是FileChannel，那你可以直接将数据从一个channel传输到另外一个Channel中**
 
 #### 4)Selector (选择器)
-
+Selector是Java NIO中可以检测多个NIO通道，并能够知晓通道是否做好读写准备的一个组件。这样一个单独的线程可以管理多个channel，从而管理多个网络连接。
 NIO有选择器，而IO没有。
+**为什么使用Selector？**
+- 仅用单个线程来处理多个channel的好处是，只需要更少的线程来处理多个通道。事实上，可以只用一个线程处理所有通道。对于操作系统来说，线程之间的上下文切换开销很大，而且每个线程都i要占用系统的一些资源。
+
+
+==与Selector一起使用时，Channel必须处于非阻塞模式下。这意味着不能将FileChannel与Selector一起使用，因为FileChannel不能切换到非阻塞模式。而Socket通道都可以。==
+
 
 **选择器用于使用单个线程处理多个通道。** 因此，它需要较少的线程来处理这些通道。线程之间的切换对于操作系统来说是昂贵的。 因此，为了提高系统效率选择器是有用的。
 
@@ -326,6 +354,41 @@ AIO 是异步IO的缩写，虽然 NIO 在网络操作中，提供了非阻塞的
 
 就目前来说 AIO 的应用还不是很广泛，Netty 之前也尝试使用过 AIO，不过又放弃了。
 
+## IO多路复用
+当IO编程呢个过程中，当需要同时处理多个客户端请求时候，可以利用多线成或IO多路复用技术进行处理。后者最大的优势就是是用少量线程同时处理多个客户端请求，减少了系统开销。
+### select
+select的实现思路很直接。假如程序同时监视如下图的sock1、sock2和sock3三个socket，那么在调用select之后，操作系统把进程A分别加入这三个socket的等待队列中。
+![asserts/1.jpg](asserts/1.jpg)\
+当任何一个socket收到数据后，中断程序将唤起进程。将进程从所有的等待队列中移除，加入到工作队列里面。
+==在我看来select就是，把某个进程放入socket的等待队列中，然后fds这个socket数组保存所有的socket，select轮询数组，如果没有信息就阻塞。当socket来信息了，唤醒线程然后遍历fds找到有数据流的socket，然后讲该线程移除所有的socket等待队列，到工作队列去执行==
+**缺点：**
+- **每次调用select都需要将进程加入到所有监视socket的等待队列，每次唤醒都需要从每个队列中移除。** 这里涉及两次遍历，并且每次都要讲需要监视的整个fds列表传递给内核。遍历开销过大，所以规定了select的最大监视数量，最多1024个。
+- 进程被唤醒后，程序并不知道那些socket收集到数据，**需要再遍历一次**。
+- 
+**注意：**
+- 这里只解释了select的一种情形。当程序调用select时，内核会先遍历一遍socket，如果有一个以上的socket接收缓冲区有数据，那么select直接返回，不会阻塞。这也是为什么select的返回值有可能大于1的原因之一。如果没有socket有数据，进程才会阻塞。
+## epoll
+相对于select的优化措施：
+1. select低效的原因之一是将“维护等待队列”和“阻塞进程”两个步骤合二为一，每次调用select都要修改等待队列。epoll将这两个操作分开，先用epoll_ctl维护等待队列(将需要监视的socket添加到epfd)，再调用epoll_wait阻塞进程。
+2. select低效的另一个原因在于程序不知道哪些socket收到数据，只能一个个遍历。如果内核维护一个“就绪列表”，引用收到数据的socket，就能避免遍历。
+
+当某个进程调用epoll_create方法时，内核会创建一个eventpoll对象。eventpoll对象也是文件系统中的一员，和socket一样，他也会有等待队列。
+![asserts/2.jpg](asserts/2.jpg)
+创建一个代表该epoll的eventpoll对象是必须的，因为内核要维护“就绪列表”等数据，“就绪列表”可以作为eventpoll的成员。
+**维护监视列表**
+创建epoll对象后，可以用epoll_ctl添加或删除所要监听的socket。以添加socket为例，如下图，如果通过epoll_ctl添加sock1、sock2和sock3的监视，内核会将eventpoll添加到这三个socket的等待队列中。
+![asserts/3.jpg](asserts/3.jpg)
+==当socket收到数据后，中断程序会操作eventpoll对象，而不是直接操作进程。==
+**接收数据**
+当socket收到数据后，中断程序会给eventpoll的“就绪列表”添加socket引用。如下图展示的是sock2和sock3收到数据后，中断程序让rdlist引用这两个socket。
+![asserts/3.jpg](asserts/4.jpg)
+eventpoll对象相当于是socket和进程之间的中介，socket的数据接收并不直接影响进程，而是通过改变eventpoll的就绪列表来改变进程状态。
+当程序执行到epoll_wait时，如果rdlist已经引用了socket，那么epoll_wait直接返回，如果rdlist为空，阻塞进程。
+**例子**
+假设计算机中正在运行进程A和进程B，在某时刻进程A运行到了epoll_wait语句。如下图所示，内核会将进程A放入eventpoll的等待队列中，阻塞进程。
+![asserts/3.jpg](asserts/5.jpg)
+当socket接收到数据，中断程序一方面修改rdlist，另一方面唤醒eventpoll等待队列中的进程，进程A再次进入运行状态（如下图）。也因为rdlist的存在，进程A可以知道哪些socket发生了变化。
+![asserts/3.jpg](asserts/6.jpg)
 ## 参考
 
 - 《Netty 权威指南》第二版
