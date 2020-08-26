@@ -240,16 +240,35 @@ https://juejin.im/post/6863668253898735629
     - 高可用和故障切换：避免单点故障
     - 升级测试：主从向后兼容，高级版本可以作为低级版本的从库
 50. MySQL主从复制工作原理
-    - 在主库上把数据更高记录到二进制日志
-    - 从库将主库的日志复制到自己的中继日志
-    - 从库读取中继日志的事件，将其重放到从库数据中
+    - 主服务器将数据的更新记录到二进制日志中（记录被称作二进制日志事件 binlog）-- 主库线程；
+    - 从库将主库的二进制日志复制到本地的中继日志（relay log）-- 从库 I/O 线程；
+    - 从库读取中继日志中的事件，将其重放到数据中 -- 从库 SQL 线程。
 
 **基本原理和流程**：3个线程以及之间的关联主binlog线程——记录下所有改变了数据库数据的语句，放进master上的binlog中；(master在每个事务更新数据完成之前，将该操作记录串行地写入到binlog文件中。)
 **从：** io线程——在使用start slave 之后，负责从master上拉取 binlog 内容，放进自己的relay log中；(salve开启一个I/O Thread，该线程在master打开一个普通连接，主要工作是binlog dump process。如果读取的进度已经跟上了master，就进入睡眠状态并等待master产生新的事件。I/O线程最终的目的是将这些事件写入到中继日志中)
 **从：** sql执行线程——执行relay log中的语句；(SQL Thread会读取中继日志，并顺序执行该日志中的SQL事件，从而与主数据库中的数据保持一致)
-51. 数据库的热备份和冷备份？
+51.  数据库的热备份和冷备份？
 
 ---
 <font size=6>SQL</font>
 
 - 姓名、科目、成绩，写 sql 语句统计总分前三的学生姓名，如果有并列的怎么办？统计这个班的学生选了哪些科目
+
+### JDBC和Mybatis
+- [介绍下 JDBC 的过程 /JDBC 的 Statement 对象有哪几类 ](https://www.jianshu.com/p/187c7f796b18)
+- jdbc 的使用，什么是 sql 注入 mysql 防注入
+- JDBC 连接 mysql 的几个步骤、为什么要加载驱动呢，原理是什么、PreparedStatement 和 Statement 区别、返回结果如何查询
+- ==Mybatis 底层实现==---`一二级缓存，#和\$的区别`
+使用`#{}`意味着使用的预编译的语句，即在使用 jdbc 时的 `preparedStatement，sql` 语句中如果存在参数则会使用?作占位符，我们知道这种方式可以防止 sql 注入，并且在使用`#{}`时形成的 sql 语句，已经带有引号，例，`selectfrom table1 where id=#{id}`在调用这个语句时我们可以通过后台看到打印出的 sql 为：`select \* from table1 where
+id='2'` 加入传的值为 2.也就是说在组成 sql 语句的时候把参数默认为字符串。
+
+    使用`${}`时的sql不会当做字符串处理，是什么就是什么，如上边的语句：`select * from table1 where id=${id} `在调用这个语句时控制台打印的为：`select _ from table1 where id=2 `，假设传的参数值为 `2 `从上边的介绍可以看出这两种方式的区别，我们最好是能用#{}则用它，因为它可以防止 sql 注入，且是预编译的，在需要原样输出时才使用`${}`，如，`select _ from ${tableName} order by ${id} `这里需要传入表名和按照哪个列进行排序
+，加入传入` table1、id` 则语句为：`select _ from table1 order by id` 如果是使用`#{}`则变成了 `select _ from 'table1' order by 'id'` 我们知道这样就不对了。
+**为什么预编译可以解决 SQL 注入**: 
+在我理解，预编译就是按照已有的关键字对 sql 进行编译，只留下一些坑位填充，坑位作为字符串填充直接执行，而不会重新作为整个 sql 编译。从而避免某些注入行为。
+
+
+- 缓存机制，一级、二级原理和作用
+  - mybatis 的查询缓存分为一级缓存和二级缓存，一级缓存是 SqlSession 级别的缓存，
+  - 二级缓存是 mapper 级别的缓存，二级缓存是多个 SqlSession 共享的;
+  当在同一个SqlSession 中执行两次相同的 sql 语句时，第一次执行完毕会将数据库中查询的数据写到缓存（内存）中，第二次查询时会从缓存中获取数据，不再去底层进行数据库查询，从而提高了查询效率。如果 SqlSession执行了DML操（insert、update、 delete），并执行commit（）操作，mybatis则会清空SqlSession 中的一级缓存,避免 脏读现象。 Mybatis的二级缓存是Mapper级别的缓存，默认不开启，需手工配置。其存储作用 域为Mapper，也就是同一个namespace 的 mappe.xml; 当一个 sqlseesion 执行了一次select 后，在关闭此session的时候，会将查询结果缓存到二级缓存。当另一个sqlsession执行select时，首先会在他自己的一级缓存中找，如果没找到，就回去二级缓存中找，找到了就返回，就不用再去数据库了。
