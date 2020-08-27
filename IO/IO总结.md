@@ -367,10 +367,44 @@ select的实现思路很直接。假如程序同时监视如下图的sock1、soc
 - 
 **注意：**
 - 这里只解释了select的一种情形。当程序调用select时，内核会先遍历一遍socket，如果有一个以上的socket接收缓冲区有数据，那么select直接返回，不会阻塞。这也是为什么select的返回值有可能大于1的原因之一。如果没有socket有数据，进程才会阻塞。
-## epoll
+
+## select和poll的缺点
+对于普通的本地应用，`select` 和 `poll`可能就很好用了，但对于像C10K这类高并发的网络场景，`select` 和 `poll`就捉襟见肘了。
+```C
+int select(int nfds, fd_set *readfds, fd_set *writefds,
+           fd_set *exceptfds, struct timeval *timeout);
+           
+int poll(struct pollfd *fds, nfds_t nfds, int timeout);
+```
+他们有一个共同点，用户需要将**监控**的文件描述符打包当作参数传入，每次调用时买这个集合都会从用户空间拷贝到内核空间。==这么做的原因是内核对这个集合是无记忆的==。对于大部分应用来说这都是浪费，因为应用需要监控的描述符在大部分时间内基本变化不大。
+
+## epoll的改进
 相对于select的优化措施：
-1. select低效的原因之一是将“维护等待队列”和“阻塞进程”两个步骤合二为一，每次调用select都要修改等待队列。epoll将这两个操作分开，先用epoll_ctl维护等待队列(将需要监视的socket添加到epfd)，再调用epoll_wait阻塞进程。
-2. select低效的另一个原因在于程序不知道哪些socket收到数据，只能一个个遍历。如果内核维护一个“就绪列表”，引用收到数据的socket，就能避免遍历。
+1. 描述符添加--内核可以记下用户关心的那些文件的那些事件
+2. 事件发生--内核可以记下那些文件的那些事件真正发生了，当用户前来获取时，能把结果提供给用户。
+
+**描述符添加：** 积然要有记忆，那么理所当然内核需要一个数据结构来保存(epoll_create创建)。类似一个链表，链表上每个节点一定是epoll_clt添加上去的，每一项都记录了描述符fd和感兴趣的事件组合event。
+![asserts/7.png](asserts/7.png)
+**事件发生：** 事件由多种类型，其中POLLIN表示可读事件是用户使用最多的。
+那么现在需要将这些刻度时间和前面的保存事件的数据结构关联起来。在linux中，每个文件描述符都在内核都有一个struct file结构对应。这个结构都有一个private_data指针，根据文件的实际类型指向不同的数据结构。
+![asserts/7.png](asserts/8.png)
+
+那么最简单的作发就是在链表节点中增加一个指向struct file的指针，在struct file中增加一个指会链表节点的指针。
+![asserts/7.png](asserts/9.png)
+为了能记录有事件发生的文件，我们还需要在epoll_instance中增加一个就绪链表readylist，在private_data指针指向的各种数据结构中增加一个指针回指到 struct file，在epoll item中增加一个挂接点字段，当一个文件可读时，就把它对应的epoll item挂接到epoll_instance。
+![asserts/7.png](asserts/10.png)
+
+在这之后，用户通过系统调用下来读取readylist就可以知道哪些文件就绪了。
+
+
+
+
+
+
+
+
+
+
 
 当某个进程调用epoll_create方法时，内核会创建一个eventpoll对象。eventpoll对象也是文件系统中的一员，和socket一样，他也会有等待队列。
 ![asserts/2.jpg](asserts/2.jpg)
