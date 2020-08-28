@@ -58,85 +58,6 @@ BIO通信(一请求一应答)模型图如下：
 
 [https://www.jianshu.com/p/a4e03835921a](https://www.jianshu.com/p/a4e03835921a)
 
-**客户端**
-
-```java
-/**
- * 
- * @author 闪电侠
- * @date 2018年10月14日
- * @Description:客户端
- */
-public class IOClient {
-
-  public static void main(String[] args) {
-    // TODO 创建多个线程，模拟多个客户端连接服务端
-    new Thread(() -> {
-      try {
-        Socket socket = new Socket("127.0.0.1", 3333);
-        while (true) {
-          try {
-            socket.getOutputStream().write((new Date() + ": hello world").getBytes());
-            Thread.sleep(2000);
-          } catch (Exception e) {
-          }
-        }
-      } catch (IOException e) {
-      }
-    }).start();
-
-  }
-
-}
-
-```
-
-**服务端**
-
-```java
-/**
- * @author 闪电侠
- * @date 2018年10月14日
- * @Description: 服务端
- */
-public class IOServer {
-
-  public static void main(String[] args) throws IOException {
-    // TODO 服务端处理客户端连接请求
-    ServerSocket serverSocket = new ServerSocket(3333);
-
-    // 接收到客户端连接请求之后为每个客户端创建一个新的线程进行链路处理
-    new Thread(() -> {
-      while (true) {
-        try {
-          // 阻塞方法获取新的连接
-          Socket socket = serverSocket.accept();
-
-          // 每一个新的连接都创建一个线程，负责读取数据
-          new Thread(() -> {
-            try {
-              int len;
-              byte[] data = new byte[1024];
-              InputStream inputStream = socket.getInputStream();
-              // 按字节流方式读取数据
-              while ((len = inputStream.read(data)) != -1) {
-                System.out.println(new String(data, 0, len));
-              }
-            } catch (IOException e) {
-            }
-          }).start();
-
-        } catch (IOException e) {
-        }
-
-      }
-    }).start();
-
-  }
-
-}
-```
-
 ### 1.4 总结
 这个模型最本质的问题在于，严重依赖于线程。但线程是很"贵"的资源，主要表现在：
 
@@ -252,93 +173,6 @@ NIO 包含下面几个核心的组件：
 [https://www.jianshu.com/p/a4e03835921a](https://www.jianshu.com/p/a4e03835921a)
 
 客户端 IOClient.java 的代码不变，我们对服务端使用 NIO 进行改造。以下代码较多而且逻辑比较复杂，大家看看就好。
-
-```java
-/**
- * 
- * @author 闪电侠
- * @date 2019年2月21日
- * @Description: NIO 改造后的服务端
- */
-public class NIOServer {
-  public static void main(String[] args) throws IOException {
-    // 1. serverSelector负责轮询是否有新的连接，服务端监测到新的连接之后，不再创建一个新的线程，
-    // 而是直接将新连接绑定到clientSelector上，这样就不用 IO 模型中 1w 个 while 循环在死等
-    Selector serverSelector = Selector.open();
-    // 2. clientSelector负责轮询连接是否有数据可读
-    Selector clientSelector = Selector.open();
-
-    new Thread(() -> {
-      try {
-        // 对应IO编程中服务端启动
-        ServerSocketChannel listenerChannel = ServerSocketChannel.open();
-        listenerChannel.socket().bind(new InetSocketAddress(3333));
-        listenerChannel.configureBlocking(false);
-        listenerChannel.register(serverSelector, SelectionKey.OP_ACCEPT);
-
-        while (true) {
-          // 监测是否有新的连接，这里的1指的是阻塞的时间为 1ms
-          if (serverSelector.select(1) > 0) {
-            Set<SelectionKey> set = serverSelector.selectedKeys();
-            Iterator<SelectionKey> keyIterator = set.iterator();
-
-            while (keyIterator.hasNext()) {
-              SelectionKey key = keyIterator.next();
-
-              if (key.isAcceptable()) {
-                try {
-                  // (1) 每来一个新连接，不需要创建一个线程，而是直接注册到clientSelector
-                  SocketChannel clientChannel = ((ServerSocketChannel) key.channel()).accept();
-                  clientChannel.configureBlocking(false);
-                  clientChannel.register(clientSelector, SelectionKey.OP_READ);
-                } finally {
-                  keyIterator.remove();
-                }
-              }
-
-            }
-          }
-        }
-      } catch (IOException ignored) {
-      }
-    }).start();
-    new Thread(() -> {
-      try {
-        while (true) {
-          // (2) 批量轮询是否有哪些连接有数据可读，这里的1指的是阻塞的时间为 1ms
-          if (clientSelector.select(1) > 0) {
-            Set<SelectionKey> set = clientSelector.selectedKeys();
-            Iterator<SelectionKey> keyIterator = set.iterator();
-
-            while (keyIterator.hasNext()) {
-              SelectionKey key = keyIterator.next();
-
-              if (key.isReadable()) {
-                try {
-                  SocketChannel clientChannel = (SocketChannel) key.channel();
-                  ByteBuffer byteBuffer = ByteBuffer.allocate(1024);
-                  // (3) 面向 Buffer
-                  clientChannel.read(byteBuffer);
-                  byteBuffer.flip();
-                  System.out.println(
-                      Charset.defaultCharset().newDecoder().decode(byteBuffer).toString());
-                } finally {
-                  keyIterator.remove();
-                  key.interestOps(SelectionKey.OP_READ);
-                }
-              }
-
-            }
-          }
-        }
-      } catch (IOException ignored) {
-      }
-    }).start();
-
-  }
-}
-```
-
 为什么大家都不愿意用 JDK 原生 NIO 进行开发呢？从上面的代码中大家都可以看出来，是真的难用！除了编程复杂、编程模型难之外，它还有以下让人诟病的问题：
 
 - JDK 的 NIO 底层由 epoll 实现，该实现饱受诟病的空轮询 bug 会导致 cpu 飙升 100%
@@ -383,6 +217,8 @@ int poll(struct pollfd *fds, nfds_t nfds, int timeout);
 1. 描述符添加--内核可以记下用户关心的那些文件的那些事件
 2. 事件发生--内核可以记下那些文件的那些事件真正发生了，当用户前来获取时，能把结果提供给用户。
 
+总的来说：epoll使用一个文件描述符管理多个描述符，将用户关系的文件描述符的事件存放到内核的一个事件表中，这样在用户空间和内核空间的copy只需一次。
+
 **描述符添加：** 积然要有记忆，那么理所当然内核需要一个数据结构来保存(epoll_create创建)。类似一个链表，链表上每个节点一定是epoll_clt添加上去的，每一项都记录了描述符fd和感兴趣的事件组合event。
 ![asserts/7.png](asserts/7.png)
 **事件发生：** 事件由多种类型，其中POLLIN表示可读事件是用户使用最多的。
@@ -423,6 +259,72 @@ eventpoll对象相当于是socket和进程之间的中介，socket的数据接�
 ![asserts/3.jpg](asserts/5.jpg)
 当socket接收到数据，中断程序一方面修改rdlist，另一方面唤醒eventpoll等待队列中的进程，进程A再次进入运行状态（如下图）。也因为rdlist的存在，进程A可以知道哪些socket发生了变化。
 ![asserts/3.jpg](asserts/6.jpg)
-## 参考
 
-- 《Netty 权威指南》第二版
+==epoll总结：==
+在 select/poll中，进程只有在调用一定的方法后，内核才对所有监视的文件描述符进行扫描，而epoll事先通过epoll_ctl()来注册一 个文件描述符，一旦基于某个文件描述符就绪时，内核会采用类似callback的回调机制，迅速激活这个文件描述符，当进程调用epoll_wait() 时便得到通知。(此处去掉了遍历文件描述符，而是通过监听回调的的机制。这正是epoll的魅力所在。)
+
+# [I/O的几种模式](https://segmentfault.com/a/1190000003063859?utm_source=sf-related)/一篇雄文
+**IO模式：**
+对于一次IO访问（以read举例），数据会先被拷贝到操作系统内核的缓冲区中，然后才会从操作系统内核的缓冲区拷贝到应用程序的地址空间。所以说，当一个read操作发生时，它会经历两个阶段：
+1. 等待数据准备 (Waiting for the data to be ready)
+2. 将数据从内核拷贝到进程中 (Copying the data from the kernel to the process)
+
+正式因为这两个阶段，linux系统产生了下面五种网络模式的方案。
+- 阻塞 I/O（blocking IO）
+- 非阻塞 I/O（nonblocking IO）
+- I/O 多路复用（ IO multiplexing）
+- 信号驱动 I/O（ signal driven IO）
+- 异步 I/O（asynchronous IO）
+  
+## **阻塞I/O**
+在linux中，默认情况下所有的socket都是blocking，一个典型的读操作流程大概是这样：
+![asserts/11.png](asserts/11.png)
+当用户进程调用了recvfrom这个系统调用，kernel就开始了IO的第一个阶段：准备数据（对于网络IO来说，很多时候数据在一开始还没有到达。比如，还没有收到一个完整的UDP包。这个时候kernel就要等待足够的数据到来）。这个过程需要等待，也就是说数据被拷贝到操作系统内核的缓冲区中是需要一个过程的。而在用户进程这边，整个进程会被阻塞（当然，是进程自己选择的阻塞）。当kernel一直等到数据准备好了，它就会将数据从kernel中拷贝到用户内存，然后kernel返回结果，用户进程才解除block的状态，重新运行起来。
+**也就是等待就绪和拷贝过程都是一直阻塞。**
+
+## **非阻塞IO**
+linux下，可以通过设置socket使其变为non-blocking。当对一个non-blocking socket执行读操作时，流程是这个样子：
+![asserts/11.png](asserts/12.png)
+当用户进程发出read操作时，如果kernel中的数据还没有准备好，那么它并不会block用户进程，而是立刻返回一个error。从用户进程角度讲 ，它发起一个read操作后，并不需要等待，而是马上就得到了一个结果。用户进程判断结果是一个error时，它就知道数据还没有准备好，于是它可以再次发送read操作。一旦kernel中的数据准备好了，并且又再次收到了用户进程的system call，那么它马上就将数据拷贝到了用户内存，然后返回。
+**数据准备阶段会用户进程不断来轮询是否准备完成，没有准备完成立即返回。数据拷贝阶段阻塞。**
+
+## **I/O 多路复用(IO multiplexing)**
+IO multiplexing就是我们说的select，poll，epoll，有些地方也称这种IO方式为event driven IO。==select/epoll的好处就在于单个process就可以同时处理多个网络连接的IO==。它的基本原理就是select，poll，epoll这个function会不断的轮询所负责的所有socket，当某个socket有数据到达了，就通知用户进程。
+![asserts/11.png](asserts/13.png)
+
+==当用户进程调用了select，那么整个进程会被block==，而同时，kernel会“监视”所有select负责的socket，当任何一个socket中的数据准备好了，select就会返回。这个时候用户进程再调用read操作，将数据从kernel拷贝到用户进程。
+==**虽然是阻塞的，但是由于一个进程可以监控多个socket所以在有很多数据流的时候效率会很快。**==
+```
+所以，I/O 多路复用的特点是通过一种机制一个进程能同时等待多个文件描述符，而这些文件描述符（套接字描述符）其中的任意一个进入读就绪状态，select()函数就可以返回。
+```
+这个图和blocking IO的图其实并没有太大的不同，事实上，还更差一些。因为这里需要使用两个system call (select 和 recvfrom)，而blocking IO只调用了一个system call (recvfrom)。但是，用select的优势在于它可以同时处理多个connection。
+
+所以，如果处理的连接数不是很高的话，使用select/epoll的web server不一定比使用multi-threading + blocking IO的web server性能更好，可能延迟还更大。select/epoll的优势并不是对于单个连接能处理得更快，而是在于能处理更多的连接。）
+- **为什么IO多路复用要搭配非阻塞IO**
+**在IO multiplexing Model中，实际中，对于每一个socket，一般都设置成为non-blocking，但是，如上图所示，整个用户的process其实是一直被block的。** 只不过process是被select这个函数block，而不是被socket IO给block
+==上面加粗的这句话的解释：==
+宏观上看起来是一个用户进程select被阻塞，实际上内部对于每个socket是非阻塞的。这是因为当某个socket接收缓冲区有新数据分节到达，然后**select报告这个socket描述符可读，但随后可能会发生意外丢弃这个数据，这时候调用read则无数据可读。** 如果socket没有被设置nonblocking，此read将阻塞当前线程。
+**所以可以看出**，select返回某个描述符读写就绪，并不意味着接下来的读写操作全过程就一定不会阻塞。==所以I/O多路复用绝大部分时候是和非阻塞的socket联合使用。==
+
+## **异步IO**
+![asserts/11.png](asserts/14.png)
+用户进程发起read操作之后，立刻就可以开始去做其它的事。而另一方面，从kernel的角度，当它受到一个asynchronous read之后，首先它会立刻返回，所以不会对用户进程产生任何block。**然后，kernel会等待数据准备完成，然后将数据拷贝到用户内存，当这一切都完成之后，kernel会给用户进程发送一个signal，告诉它read操作完成了。** 所有操作都由内核自己完成。
+
+## 总结
+- **blocking和non-blocking的区别**
+  调用blocking IO会一直block住对应的进程直到操作完成，而non-blocking IO在kernel还准备数据的情况下会立刻返回。
+- **synchronous IO和asynchronous IO的区别**
+在说明synchronous IO和asynchronous IO的区别之前，需要先给出两者的定义。POSIX的定义是这样子的：
+- - A synchronous I/O operation causes the requesting process to be blocked until that I/O operation completes;
+- - An asynchronous I/O operation does not cause the requesting process to be blocked;
+
+两者的区别就在于synchronous IO做”IO operation”的时候会将process阻塞。按照这个定义，之前所述的blocking IO，non-blocking IO，IO multiplexing都属于synchronous IO。
+
+有人会说，non-blocking IO并没有被block啊。这里有个非常“狡猾”的地方，**定义中所指的”IO operation”是指真实的IO操作，就是例子中的recvfrom这个system call**。non-blocking IO在执行recvfrom这个system call的时候，如果kernel的数据没有准备好，这时候不会block进程。但是，==当kernel中数据准备好的时候，recvfrom会将数据从kernel拷贝到用户内存中，这个时候进程是被block了，在这段时间内，进程是被block的==。
+
+而asynchronous IO则不一样，当进程发起IO 操作之后，就直接返回再也不理睬了，直到kernel发送一个信号，告诉进程说IO完成。在这整个过程中，进程完全没有被block。
+
+**各个IO Model的比较如图所示：**
+![asserts/11.png](asserts/15.png)
+通过上面的图片，可以发现non-blocking IO和asynchronous IO的区别还是很明显的。在non-blocking IO中，虽然进程大部分时间都不会被block，但是它仍然要求进程去主动的check，并且当数据准备完成以后，也需要进程主动的再次调用recvfrom来将数据拷贝到用户内存。而asynchronous IO则完全不同。它就像是用户进程将整个IO操作交给了他人（kernel）完成，然后他人做完后发信号通知。在此期间，用户进程不需要去检查IO操作的状态，也不需要主动的去拷贝数据。
+
