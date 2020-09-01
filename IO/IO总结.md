@@ -219,7 +219,7 @@ int poll(struct pollfd *fds, nfds_t nfds, int timeout);
 
 总的来说：epoll使用一个文件描述符管理多个描述符，将用户关系的文件描述符的事件存放到内核的一个事件表中，这样在用户空间和内核空间的copy只需一次。
 
-**描述符添加：** 积然要有记忆，那么理所当然内核需要一个数据结构来保存(epoll_create创建)。类似一个链表，链表上每个节点一定是epoll_clt添加上去的，每一项都记录了描述符fd和感兴趣的事件组合event。
+**描述符添加：** 既然要有记忆，那么理所当然内核需要一个数据结构来保存(epoll_create创建)。类似一个链表，链表上每个节点一定是epoll_clt添加上去的，每一项都记录了描述符fd和感兴趣的事件组合event。
 ![asserts/7.png](asserts/7.png)
 **事件发生：** 事件由多种类型，其中POLLIN表示可读事件是用户使用最多的。
 那么现在需要将这些刻度时间和前面的保存事件的数据结构关联起来。在linux中，每个文件描述符都在内核都有一个struct file结构对应。这个结构都有一个private_data指针，根据文件的实际类型指向不同的数据结构。
@@ -286,9 +286,10 @@ eventpoll对象相当于是socket和进程之间的中介，socket的数据接�
 linux下，可以通过设置socket使其变为non-blocking。当对一个non-blocking socket执行读操作时，流程是这个样子：
 ![asserts/11.png](asserts/12.png)
 当用户进程发出read操作时，如果kernel中的数据还没有准备好，那么它并不会block用户进程，而是立刻返回一个error。从用户进程角度讲 ，它发起一个read操作后，并不需要等待，而是马上就得到了一个结果。用户进程判断结果是一个error时，它就知道数据还没有准备好，于是它可以再次发送read操作。一旦kernel中的数据准备好了，并且又再次收到了用户进程的system call，那么它马上就将数据拷贝到了用户内存，然后返回。
-**数据准备阶段会用户进程不断来轮询是否准备完成，没有准备完成立即返回。数据拷贝阶段阻塞。**
+**数据准备阶段会用户进程不断来轮询是否准备完成，没有准备完成立即返回。数据拷贝阶段阻塞。非阻塞IO是针对一个文件的，我只有一个需求..所以我只需要不停的来轮询你这个文件是否搞定。**
 
 ## **I/O 多路复用(IO multiplexing)**
+**IO多路复用是针对一个进程**
 IO multiplexing就是我们说的select，poll，epoll，有些地方也称这种IO方式为event driven IO。==select/epoll的好处就在于单个process就可以同时处理多个网络连接的IO==。它的基本原理就是select，poll，epoll这个function会不断的轮询所负责的所有socket，当某个socket有数据到达了，就通知用户进程。
 ![asserts/11.png](asserts/13.png)
 
