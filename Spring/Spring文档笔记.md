@@ -338,3 +338,539 @@ BeanPostProcessor它主要干预的是Spring中Bean的整个生命周期（实�
 1. BeanPostProcessor，主要用于干预Bean的创建过程。
 2. BeanFactroyPostProcessor，主要用于针对容器中的BeanDefinition。
 3. FactoryBean，主要用于将一个对象直接放入到Spring容器中，同时可以封装复杂的对象的创建逻辑。
+
+# 六、 Bean的生命周期总结
+Bean的生命周期应该从哪里开始？
+个人认为**从第一次调用后置处理器中的`applyBeanPostProcessorsBeforeInstantiation`方法开始的，即实例化前调用后置处理器。而`applyBeanPostProcessorsAfterInitialization`方法调用意味着Bean生命周期中的创建阶段结束。
+
+![asserts/642.webp](asserts/642.webp)
+需要注意的是，对于`BeanDefinion`的扫描，解析，验证**并不属于Bean的生命周期的一部分**。整个Bean的生命周期，我将其分为了两部分
+- 创建
+- 销毁
+## 6.1 实例化
+createBean流程分析
+```java
+protected Object createBean(String beanName, RootBeanDefinition mbd, @Nullable Object[] args)
+   throws BeanCreationException {
+
+  RootBeanDefinition mbdToUse = mbd;
+  
+    // 第一步：解析BeanDefinition中的beanClass属性
+  Class<?> resolvedClass = resolveBeanClass(mbd, beanName);
+  if (resolvedClass != null && !mbd.hasBeanClass() && mbd.getBeanClassName() != null) {
+   mbdToUse = new RootBeanDefinition(mbd);
+   mbdToUse.setBeanClass(resolvedClass);
+  }
+    
+  try {
+            // 第二步：处理lookup-method跟replace-method，判断是否存在方法的重载
+   mbdToUse.prepareMethodOverrides();
+  }
+  catch (BeanDefinitionValidationException ex) {
+   throw new BeanDefinitionStoreException(mbdToUse.getResourceDescription(),
+     beanName, "Validation of method overrides failed", ex);
+  }
+
+  try {
+   // 第三步：判断这个类在之后是否需要进行AOP代理
+   Object bean = resolveBeforeInstantiation(beanName, mbdToUse);
+   if (bean != null) {
+    return bean;
+   }
+  }
+  catch (Throwable ex) {
+   throw new BeanCreationException(mbdToUse.getResourceDescription(), beanName,
+     "BeanPostProcessor before instantiation of bean failed", ex);
+  }
+
+  try {
+            // 开始创建Bean
+   Object beanInstance = doCreateBean(beanName, mbdToUse, args);
+   return beanInstance;
+  }
+  catch (BeanCreationException | ImplicitlyAppearedSingletonException ex) {
+   throw ex;
+  }
+  catch (Throwable ex) {
+   throw new BeanCreationException(
+     mbdToUse.getResourceDescription(), beanName, "Unexpected exception during bean creation", ex);
+  }
+ }
+```
+第一步跟第二步还是在对`BeanDefinition`中的一些属性做处理，它并不属于我们Bean的生命周期的一部分，**直接跳过**，接下来看第三步的代码：
+```java
+protected Object resolveBeforeInstantiation(String beanName, RootBeanDefinition mbd) {
+    Object bean = null;
+    if (!Boolean.FALSE.equals(mbd.beforeInstantiationResolved)) {
+        // 不是合成类，并且有实例化后置处理器。这个判断基本上恒成立
+        if (!mbd.isSynthetic() && hasInstantiationAwareBeanPostProcessors()) {
+            // 获取这个BeanDefinition的类型
+            Class<?> targetType = determineTargetType(beanName, mbd);
+            if (targetType != null) {
+                // 这里执行的主要是AbstractAutoProxyCreator这个类中的方法，决定是否要进行AOP代理
+                bean = applyBeanPostProcessorsBeforeInstantiation(targetType, beanName);
+                // 这里执行了一个短路操作，如果在这个后置处理中直接返回了一个Bean,那么后面相关的操作就不会执行了，只会执行一个AOP的代理操作
+                if (bean != null) {
+                    // 虽然这个Bean被短路了，意味着不需要经过后面的初始化阶段，但是如果需要代理的话，还是要进行AOP代理，这个地方的短路操作只是意味着我们直接在后置处理器中提供了一个准备充分的的Bean，这个Bean不需要进行初始化，但需不需要进行代理，任然由AbstractAutoProxyCreator的applyBeanPostProcessorsBeforeInstantiation方法决定。在这个地方还是要调用一次Bean的初始化后置处理器保证Bean被完全的处理完
+                    bean = applyBeanPostProcessorsAfterInitialization(bean, beanName);
+                }
+            }
+        }
+        // bean != null基本会一直返回false,所以beforeInstantiationResolved这个变量也会一直为false
+        mbd.beforeInstantiationResolved = (bean != null);
+    }
+    return bean;
+}
+```
+对于`AbstractAutoProxyCreator`中`applyBeanPostProcessorsBeforeInstantiation`这个方法的分析我们暂且不管，等到AOP学习阶段在进行详细分析。我们暂且**只需要知道这个方法会决定在后续中要不要为这个Bean产生代理对象**。
+## 6.2 doCreateBean流程分析
+```java
+protected Object doCreateBean(final String beanName, final RootBeanDefinition mbd, final @Nullable Object[] args)
+   throws BeanCreationException {
+
+  BeanWrapper instanceWrapper = null;
+  if (mbd.isSingleton()) {
+            // 第一步：单例情况下，看factoryBeanInstanceCache这个缓存中是否有
+   instanceWrapper = this.factoryBeanInstanceCache.remove(beanName);
+  }
+  if (instanceWrapper == null) {
+            // 第二步：这里创建对象
+   instanceWrapper = createBeanInstance(beanName, mbd, args);
+  }
+  final Object bean = instanceWrapper.getWrappedInstance();
+  Class<?> beanType = instanceWrapper.getWrappedClass();
+  if (beanType != NullBean.class) {
+   mbd.resolvedTargetType = beanType;
+  }
+
+  synchronized (mbd.postProcessingLock) {
+   if (!mbd.postProcessed) {
+    try {
+                    // 第三步：后置处理器处理
+     applyMergedBeanDefinitionPostProcessors(mbd, beanType, beanName);
+    }
+    catch (Throwable ex) {
+     // 省略异常处理
+    }
+    mbd.postProcessed = true;
+   }
+  }
+  
+        // 判断是否要循环引用相关，源码阅读阶段再来解读这段代码，暂且就关注以下后置处理器的调用时机
+  boolean earlySingletonExposure = (mbd.isSingleton() && this.allowCircularReferences &&
+    isSingletonCurrentlyInCreation(beanName));
+  if (earlySingletonExposure) {
+   // 第四步：调用后置处理器，早期曝光一个工厂对象
+   addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, mbd, bean));
+  }
+
+  Object exposedObject = bean;
+  try {
+            // 第五步：属性注入
+   populateBean(beanName, mbd, instanceWrapper);
+            // 第六步：初始化
+   exposedObject = initializeBean(beanName, exposedObject, mbd);
+  }
+  catch (Throwable ex) {
+   if (ex instanceof BeanCreationException && beanName.equals(((BeanCreationException) ex).getBeanName())) {
+    throw (BeanCreationException) ex;
+   }
+   else {
+    // 省略异常处理
+   }
+  }
+
+  if (earlySingletonExposure) {
+   Object earlySingletonReference = getSingleton(beanName, false);
+   if (earlySingletonReference != null) {
+    if (exposedObject == bean) {
+     exposedObject = earlySingletonReference;
+    }
+    else if (!this.allowRawInjectionDespiteWrapping && hasDependentBean(beanName)) {
+     String[] dependentBeans = getDependentBeans(beanName);
+     Set<String> actualDependentBeans = new LinkedHashSet<>(dependentBeans.length);
+     for (String dependentBean : dependentBeans) {
+      if (!removeSingletonIfCreatedForTypeCheckOnly(dependentBean)) {
+       actualDependentBeans.add(dependentBean);
+      }
+     }
+     if (!actualDependentBeans.isEmpty()) {
+      // 省略异常处理
+     }
+    }
+   }
+  }
+
+  try {
+            // 第七步：注册需要销毁的Bean,放到一个需要销毁的Map中（disposableBeans）
+   registerDisposableBeanIfNecessary(beanName, bean, mbd);
+  }
+  catch (BeanDefinitionValidationException ex) {
+   // 省略异常处理
+  }
+
+  return exposedObject;
+ }
+```
+**第一步：factoryBeanInstanceCache什么时候不为空？**
+```java
+if (mbd.isSingleton()) {
+    // 第一步：单例情况下，看factoryBeanInstanceCache这个缓存中是否有
+    instanceWrapper = this.factoryBeanInstanceCache.remove(beanName);
+}
+```
+**属性注入的一个操作：**
+假设Spring现在知道`IndexService`要注入一个类型为A的属性，所以它会遍历所有的解析出来的`BeanDefinition`，然后每一个`BeanDefinition`中的类型是不是A类型。
+这种判断大部分情况下是成立的，**但是对于一种特殊的Bean是不行的，就是我们之前介绍过的`FactoryBean`，因为我们配置`FactoacryBean`的目的并不是直接使用`FactoryBean`这个Bean自身，而是想要通过它的`getObject`方法将一个对象放到Spring容器中，**所以当我们遍历到一个`BeanDefinition`，并且这个`BeanDefinition`是一个`FactoacryBean`时就需要做特殊处理，我们知道`FactoacryBean`中有一个`getObjectType`方法，通过这个方法我们可以得到要被这个`FactoacryBean`创建的对象的类型，如果我们能调用这个方法的话，那么我们就可以来判断这个类型是不是一个A了。
+
+**第二步：创建对象（createBeanInstance）**
+```java
+  // 获取到解析后的beanClass
+  Class<?> beanClass = resolveBeanClass(mbd, beanName);
+  
+     // 忽略异常处理
+  Supplier<?> instanceSupplier = mbd.getInstanceSupplier();
+  if (instanceSupplier != null) {
+   return obtainFromSupplier(instanceSupplier, beanName);
+  }
+  
+     // 获取工厂方法，用于之后创建对象 
+  if (mbd.getFactoryMethodName() != null) {
+   return instantiateUsingFactoryMethod(beanName, mbd, args);
+  }
+
+  // 原型情况下避免多次解析
+  boolean resolved = false;
+  boolean autowireNecessary = false;
+  if (args == null) {
+   synchronized (mbd.constructorArgumentLock) {
+    if (mbd.resolvedConstructorOrFactoryMethod != null) {
+     resolved = true;
+     autowireNecessary = mbd.constructorArgumentsResolved;
+    }
+   }
+  }
+  if (resolved) {
+   if (autowireNecessary) {
+    return autowireConstructor(beanName, mbd, null, null);
+   }
+   else {
+    return instantiateBean(beanName, mbd);
+   }
+  }
+
+  // 跟后置处理器相关，我们主要关注这行代码
+  Constructor<?>[] ctors = determineConstructorsFromBeanPostProcessors(beanClass, beanName);
+  if (ctors != null || mbd.getResolvedAutowireMode() == AUTOWIRE_CONSTRUCTOR ||
+    mbd.hasConstructorArgumentValues() || !ObjectUtils.isEmpty(args)) {
+   return autowireConstructor(beanName, mbd, ctors, args);
+  }
+
+  // Preferred constructors for default construction?
+  ctors = mbd.getPreferredConstructors();
+  if (ctors != null) {
+   return autowireConstructor(beanName, mbd, ctors, null);
+  }
+
+  // 默认使用无参构造函数创建对象
+  return instantiateBean(beanName, mbd);
+ }
+ ```
+ 暂且知道在创建对象的过程中，Spring会调用一个后置处理器来推断构造函数。
+ **第三步：applyMergedBeanDefinitionPostProcessors**
+ 应用合并后的BeanDefinition，Spring自身利用这点做了一些注解元数据的缓存。
+我们就以AutowiredAnnotationBeanPostProcessor这个类的对应方法看一下其大概作用.
+```java
+public void postProcessMergedBeanDefinition(RootBeanDefinition beanDefinition, Class<?> beanType, String beanName) {
+    // 这个方法就是找到这个正在创建的Bean中需要注入的字段，并放入缓存中
+    InjectionMetadata metadata = findAutowiringMetadata(beanName, beanType, null);
+    metadata.checkConfigMembers(beanDefinition);
+}
+```
+**第四步：getEarlyBeanReference**
+```java
+protected Object getEarlyBeanReference(String beanName, RootBeanDefinition mbd, Object bean) {
+    Object exposedObject = bean;
+    if (!mbd.isSynthetic() && hasInstantiationAwareBeanPostProcessors()) {
+        for (BeanPostProcessor bp : getBeanPostProcessors()) {
+            if (bp instanceof SmartInstantiationAwareBeanPostProcessor) {
+                SmartInstantiationAwareBeanPostProcessor ibp = (SmartInstantiationAwareBeanPostProcessor) bp;
+                // 在这里保证注入的对象是一个代理的对象（如果需要代理的话），主要用于循环依赖
+                exposedObject = ibp.getEarlyBeanReference(exposedObject, beanName);
+            }
+        }
+    }
+    return exposedObject;
+}
+```
+## 6.3 属性注入
+**第五步：属性注入（populateBean）**
+```java
+protected void populateBean(String beanName, RootBeanDefinition mbd, @Nullable BeanWrapper bw) {
+  if (bw == null) {
+   if (mbd.hasPropertyValues()) {
+    // 省略异常
+   }
+   else {
+    return;
+   }
+  }
+
+  boolean continueWithPropertyPopulation = true;
+
+  if (!mbd.isSynthetic() && hasInstantiationAwareBeanPostProcessors()) {
+   for (BeanPostProcessor bp : getBeanPostProcessors()) {
+    if (bp instanceof InstantiationAwareBeanPostProcessor) {
+     InstantiationAwareBeanPostProcessor ibp = (InstantiationAwareBeanPostProcessor) bp;
+     if (!ibp.postProcessAfterInstantiation(bw.getWrappedInstance(), beanName)) {   // 主要判断之后是否需要进行属性注入
+      continueWithPropertyPopulation = false;
+      break;
+     }
+    }
+   }
+  }
+
+  if (!continueWithPropertyPopulation) {
+   return;
+  }
+
+  PropertyValues pvs = (mbd.hasPropertyValues() ? mbd.getPropertyValues() : null);
+  
+        // 自动注入模型下，找到合适的属性，在后续方法中再进行注入
+  if (mbd.getResolvedAutowireMode() == AUTOWIRE_BY_NAME || mbd.getResolvedAutowireMode() == AUTOWIRE_BY_TYPE) {
+   MutablePropertyValues newPvs = new MutablePropertyValues(pvs);
+   // Add property values based on autowire by name if applicable.
+   if (mbd.getResolvedAutowireMode() == AUTOWIRE_BY_NAME) {
+    autowireByName(beanName, mbd, bw, newPvs);
+   }
+   // Add property values based on autowire by type if applicable.
+   if (mbd.getResolvedAutowireMode() == AUTOWIRE_BY_TYPE) {
+    autowireByType(beanName, mbd, bw, newPvs);
+   }
+   pvs = newPvs;
+  }
+  
+  boolean hasInstAwareBpps = hasInstantiationAwareBeanPostProcessors();
+  boolean needsDepCheck = (mbd.getDependencyCheck() != AbstractBeanDefinition.DEPENDENCY_CHECK_NONE);
+
+  PropertyDescriptor[] filteredPds = null;
+  if (hasInstAwareBpps) {
+   if (pvs == null) {
+    pvs = mbd.getPropertyValues();
+   }
+   for (BeanPostProcessor bp : getBeanPostProcessors()) {
+    if (bp instanceof InstantiationAwareBeanPostProcessor) {
+     InstantiationAwareBeanPostProcessor ibp = (InstantiationAwareBeanPostProcessor) bp;
+                    // 精确注入下，在这里完成属性注入
+     PropertyValues pvsToUse = ibp.postProcessProperties(pvs, bw.getWrappedInstance(), beanName);
+                    // 一般不会进行这个方法
+     if (pvsToUse == null) {
+      if (filteredPds == null) {
+       filteredPds = filterPropertyDescriptorsForDependencyCheck(bw, mbd.allowCaching);
+      }
+      pvsToUse = ibp.postProcessPropertyValues(pvs, filteredPds, bw.getWrappedInstance(), beanName);
+      if (pvsToUse == null) {
+       return;
+      }
+     }
+     pvs = pvsToUse;
+    }
+   }
+  }
+  if (needsDepCheck) {
+   if (filteredPds == null) {
+    filteredPds = filterPropertyDescriptorsForDependencyCheck(bw, mbd.allowCaching);
+   }
+   checkDependencies(beanName, mbd, filteredPds, pvs);
+  }
+
+  if (pvs != null) {
+            // XML配置，或者自动注入，会将之前找到的属性在这里进行注入
+   applyPropertyValues(beanName, mbd, bw, pvs);
+  }
+ }
+ ```
+ 在上面整个流程中，我们主要关注一个方法，`postProcessProperties`，这个方法会将之前通过`postProcessMergedBeanDefinition`方法找到的注入点，在这一步进行注入。完成属性注入后，就开始初始化了。
+ ## 6.4 总体流程图
+ ![asserts/643.webp](asserts/643.webp)
+ 首先，整个Bean的生命周期我们将其划分为两个部分
+- 创建
+- 销毁
+对于创建阶段，我们又将其分为三步
+- 实例化
+- 属性注入
+- 初始化
+我们可以看到，在整个过程中**BeanPostPorcessor**穿插执行，辅助Spring完成了整个Bean的生命周期。
+
+# 七、ApplicationContext
+1、ApplicationContext的继承关系
+- MessageSource，主要用于国际化
+- ApplicationEventPublisher，提供了事件发布功
+- EnvironmentCapable，可以获取容器当前运行的环境
+- ResourceLoader，主要用于加载资源文件
+- BeanFactory，负责配置、创建、管理Bean，IOC功能的实现主要就依赖于该接口子类实现。
+
+2、ApplicationContext的功能
+- Spring中的国际化（MessageSource）
+- Spring中的环境（Environment）
+
+## 7.1 国际化（空）
+
+## 7.2 Spring中的环境（Environment）
+`ApplicationContext`这个接口继承了一个`EnvironmentCapable`接口，而这个接口的定义非常简单
+```java
+public interface EnvironmentCapable {
+ Environment getEnvironment();
+}
+```
+**什么是环境（Environment）？**
+代表了当前Spring容器的运行环境，比如JDK环境，系统环境；每个环境都有自己的配置数据，如System.getProperties()可以拿到JDK环境数据、System.getenv()可以拿到系统变量，ServletContext.getInitParameter()可以拿到Servlet环境配置数据。Spring抽象了一个Environment来表示Spring应用程序环境配置，它整合了各种各样的外部环境，并且提供统一访问的方法。
+
+## 部分总结
+对于国际化而言，首先我们要知道国际化到底是什么？简而言之，**国际化就是为每种语言提供一套相应的资源文件，并以规范化命名的方式保存在特定的目录中，由系统自动根据客户端语言选择适合的资源文件。**其次，我们也一起了解了java中的国际化，最后学习了Spring对java国际化的一些封装，也就是MessageSource接口
+
+对于Spring中环境的抽象（Environment）这块内容比较多，主要要知道Environment完成了两个功能：
+1. 为程序运行提供不同的剖面，即Profile
+2. 操作程序运行中的属性资源
+   
+整个Environment体系可以用下图表示：
+![asserts/644.webp](asserts/644.webp)
+**对上图的解释：**
+- Environment可以激活不同的`Profile`而为程序选择不同的剖面，一个`Profile`其实就是一组Spring中的Bean
+- `Environment`继承了`PropertyResolver`，从而可以操作程序运行时中的属性资源。而`PropertyResolver`的实现依赖于`PropertySource`，同时`PropertySource`一般不会独立使用，而是被封装进一个`PropertySources`对象中。
+
+## 7.3 Spring中的资源管理（空）
+
+
+## 7.4 Spring中的事件监听（publish-event）
+`ApplicationContext`接口继承了`ApplicationEventPublisher`接口，能够进行事件发布监听。
+
+**什么是监听者模式？**
+事件源经过事件的封装传给监听器，当事件源触发事件后，监听器接收到事件对象可以回调事件的方法。
+
+**注解方式实现事件发布机制**
+```java
+@ComponentScan("com.dmz.official.event")
+public class Main02 {
+ public static void main(String[] args) {
+  ApplicationEventPublisher publisher = new AnnotationConfigApplicationContext(Main02.class);
+  publisher.publishEvent(new Event("注解事件"));
+        // 程序打印：
+        // 接收到事件:注解事件
+        // 处理事件
+ }
+
+ static class Event {
+  String name;
+
+  Event(String name) {
+   this.name = name;
+  }
+
+  @Override
+  public String toString() {
+   return name;
+  }
+ }
+
+ @Component
+ static class Listener {
+  @EventListener
+  public void listen(Event event) {
+   System.out.println("接收到事件:" + event);
+   System.out.println("处理事件");
+  }
+ }
+}
+```
+我们使用一个`@EventListener`注解，直接标注了`Listener`类中的一个方法是一个事件监听器，并且通过方法的参数类型`Event`指定了这个监听器监听的事件类型为`Event`类型。在这个例子中，第一，我们事件不需要去继承特定的类，第二，我们的监听器也不需要去实现特定的接口，极大的方便了我们的开发。
+
+**另外还有两个注解`@EnableAsync`以及`@Async`可以异步监听等。**
+
+## 7.4 BeanFactory
+BeanFactory接口定义
+```java
+public interface BeanFactory {
+ 
+    // FactroyBean的前缀，如果getBean的时候BeanName有这个前缀，会去获取对应的FactroyBean
+    // 而不是获取FactroyBean的getObject返回的Bean
+ String FACTORY_BEAN_PREFIX = "&";
+ 
+    // 都是用于获取指定的Bean，根据名称获取指定类型获取
+ Object getBean(String name) throws BeansException;
+ <T> T getBean(String name, Class<T> requiredType) throws BeansException;
+ Object getBean(String name, Object... args) throws BeansException;
+ <T> T getBean(Class<T> requiredType) throws BeansException;
+ <T> T getBean(Class<T> requiredType, Object... args) throws BeansException;
+ 
+    // 获取指定的Bean的ObjectProvider,这个有个问题，ObjectProvider是什么？请参考我《Spring杂谈》相关文章
+    <T> ObjectProvider<T> getBeanProvider(Class<T> requiredType);
+ <T> ObjectProvider<T> getBeanProvider(ResolvableType requiredType);
+ 
+    // 检查容器中是否含有这个名称的Bean
+ boolean containsBean(String name);
+ 
+    // 判断指定的Bean是否为单例
+ boolean isSingleton(String name) throws NoSuchBeanDefinitionException;
+ 
+    // 判断指定的Bean是否为原型
+ boolean isPrototype(String name) throws NoSuchBeanDefinitionException;
+ 
+    // 判断指定的Bean类型是否匹配，关于ResolvableType我已经专门写文章介绍过了，请参考我《Spring杂谈》相关文章
+ boolean isTypeMatch(String name, ResolvableType typeToMatch) throws NoSuchBeanDefinitionException;
+ boolean isTypeMatch(String name, Class<?> typeToMatch) throws NoSuchBeanDefinitionException;
+ 
+    // 返回指定Bean的类型
+ Class<?> getType(String name) throws NoSuchBeanDefinitionException;
+ 
+    // 返回指定Bean的别名
+ String[] getAliases(String name);
+
+}
+```
+BeanFactory接口主要提供了查找Bean，创建Bean（在getBean调用的时候也会去创建Bean）,以及针对容器中的Bean做一些判断的方法。
+
+# 第八章 AOP
+**面向对象编程解决了业务模块的封装复用的问题**，但是对于某些模块，**其本身并不独属于摸个业务模块，而是根据不同的情况，贯穿于某几个或全部的模块之间的**。例如登录验证，其只开放几个可以不用登录的接口给用户使用（一般登录使用拦截器实现，但是其切面思想是一致的）；再比如性能统计，其需要记录每个业务模块的调用，并且监控器调用时间。可以看到，**这些横贯于每个业务模块的模块，如果使用面向对象的方式，那么就需要在已封装的每个模块中添加相应的重复代码，对于这种情况，面向切面编程就可以派上用场了**。面向切面编程，指的是将一定的切面逻辑按照一定的方式编织到指定的业务模块中，从而将这些业务模块的调用包裹起来。
+
+**关键词**
+连接点：所有能将通知应用到的地方都是连接点。约等于所有的方法，出构造方法。
+通知：aop执行的方法
+切点：在连接点的基础上，来定义切入点。即具体回使用aop的地方就是aop。
+切面：切点跟通知组成切面。
+
+目标对象：**引入中所提到的目标类**，也就是要被通知的对象，也就是真正的业务逻辑，他可以在毫不知情的情况下，被织入切面，而自己专注于业务本身的逻辑。
+代理对象：**将切面织入目标对象后所得到的就是代理对象**。代理对象是正在具备通知所定义的功能，并且被引入了的对象。
+
+**织入：** 把切面应用到目标对象来创建新的代理对象的过程。切面的织入有三种方式
+- 编译时织入
+- 类加载时期织入
+- 运行时织入(都用这个)
+
+## 8.2 AOP的应用
+1. 全局异常处理器
+2. 利用AOP打印接口日志
+3. 等待
+
+### 8.3 全局异常处理
+需要用到两个注解：`@RestControllerAdvice`及`@ExceptionHandler``,总共分为以下几步：
+- 定义自己项目中用到的错误码及对应异常信息
+- 封装自己的异常
+- 申明全局异常处理器并针对业务中的异常做统一处理
+
+其实SpringMVC中提供了一个异常处理的基类（`org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler`）。我们只需要将自定义的异常处理类继承这个`ResponseEntityExceptionHandler`然后复写对应的方法即可完成全局异常处理。
+### 8.4 接口日志
+使用AOP来简化代码，按照以下几步即可：
+1. 自定义一个注解
+2. 申明切面
+
+### 8.5 异步注解的问题
+1. 无法解决循环依赖。
+   @Async注解导致的循环依赖应该属于AOP对象间的循环依赖。解决AOP对象间循环依赖的核心方法是三级缓存，在三级缓存缓存了一个工厂对象，这个工厂对象会调用getEarlyBeanReference方法来获取一个早期的代理对象的引用。**但是早期暴露的对象跟最终放入容器中的对象不是同一个，所以报错了。**
+   ==解决：== **只需要在为B注入A时添加一个@Lazy注解即可**，这个注解的作用在于，当为B注入A时，会为A生成一个代理对象注入到B中，当真正调用代理对象的方法时，底层会调用getBean(a)去创建A对象，然后调用方法。
+
+2. 默认线程池不会复用线程
+- 为每个任务新起一个线程
+- 默认线程数不做限制
+- 不复用线程
+  ==解决：== 最好的办法就是使用自定义的线程池，主要有这么几种配置方法.1. 通过`AsyncConfigurer`来配置使用的线程池。2. 直接在@Async注解中配置要使用的线程池的名称
